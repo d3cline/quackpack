@@ -4,6 +4,7 @@ import {readFile} from 'node:fs/promises';
 import {pathToFileURL} from 'node:url';
 const {Window} = await import(process.argv[2] ? pathToFileURL(process.argv[2]).href : 'happy-dom');
 const script=await readFile(new URL('../assets/app.js',import.meta.url),'utf8');
+const photoScript=await readFile(new URL('../assets/photos.js',import.meta.url),'utf8');
 let count=0;
 function check(v,name){if(!v)throw new Error(name);console.log(`ok ${++count} - ${name}`);}
 const post={id:'https://remote.example/p/1',url:'https://remote.example/p/1',actor:'https://remote.example/users/bob',name:'<script>bad()</script>',handle:'bob@remote.example',avatar:'',content:'An <img onerror=bad()> is just text',caption:'Hello',photos:[{url:'https://remote.example/photo.jpg',alt:'A street'},{url:'https://remote.example/photo2.jpg',alt:'A second street'}],published:'2026-10-19T12:00:00Z',sensitive:true,summary:'Hidden moment',local:false,saved:false,liked:false};
@@ -16,7 +17,7 @@ function dom(state){
  w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};
  w.HTMLDialogElement.prototype.close=function(){this.open=false;this.dispatchEvent(new w.Event('close'));};
  w.fetch=async()=>({ok:true,json:async()=>({posts:[],cursor:'',source:'test'})});
- w.eval(script);return w;
+ w.eval(photoScript);w.eval(script);return w;
 }
 const state={view:'journal',owner:true,csrf:'csrf',profile:{avatar:''},handle:'@alice@photos.example',posts:[post],servers:[{domain:'remote.example'}],single:false};
 let w=dom(state),d=w.document;
@@ -119,5 +120,16 @@ d.querySelector('#master-photos').click();await new Promise(resolve=>setTimeout(
 check(masterRequest.searchParams.get('photos')==='0','photos-only filter can include text moments');
 d.querySelector('#discovery-source').value='https://remote.example/users/person';d.querySelector('#discovery-seed').dispatchEvent(new w.Event('submit',{cancelable:true,bubbles:true}));await new Promise(resolve=>setTimeout(resolve,0));
 check(action.action==='watch'&&action.value==='https://remote.example/users/person','profile source enters the background outbox watch queue');
+w.happyDOM.abort();
+w=dom({...state,routing:'query',uploads:{file_bytes:2097152,post_bytes:8388608}});d=w.document;
+w.URL.createObjectURL=()=> 'blob:photo-preview';w.URL.revokeObjectURL=()=>{};
+const chosen=new w.DataTransfer();chosen.items.add(new w.File([new Uint8Array(16*1024*1024)],'IMG_1234.HEIC',{type:'image/heic'}));
+d.querySelector('#photo-input').files=chosen.files;d.querySelector('#photo-input').dispatchEvent(new w.Event('change'));
+check(d.querySelectorAll('.photo-preview').length===1,'phone original over 15 MB remains selectable for resizing');
+let prepared=0,uploaded;
+w.QuackpackPhotos.prepare=async(file,budget)=>{prepared++;check(file.name==='IMG_1234.HEIC'&&budget<2097152,'composer prepares selected HEIC within actual PHP limits');return new w.File(['jpeg'],'IMG_1234.jpg',{type:'image/jpeg'});};
+w.fetch=async(url,init)=>{uploaded=init.body.get('photos[]');return {ok:true,json:async()=>({})};};
+d.querySelector('#compose-form').dispatchEvent(new w.Event('submit',{cancelable:true,bubbles:true}));await new Promise(resolve=>setTimeout(resolve,0));
+check(prepared===1&&uploaded.name==='IMG_1234.jpg'&&uploaded.type==='image/jpeg','composer sends the prepared JPEG instead of the phone original');
 w.happyDOM.abort();
 console.log(`PASS: ${count} frontend DOM interaction assertions`);

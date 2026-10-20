@@ -32,6 +32,7 @@ try{
  check(!array_filter(array_slice($calls,$before),static fn($c)=>isset($c['headers']['Authorization'])||isset($c['headers']['Signature'])),'public REST profile reads need neither OAuth nor federation signatures');
  rejects(fn()=>$app->browser->account('mastodon.social','../../inbox','mastodon'),'native profile identifiers cannot change the API path');
  $node('pixel.example','pixelfed');$put('https://pixel.example/api/v1/timelines/public?limit=24&only_media=true&local=true',[$ms],200,'application/json');
+ $put($ms['uri'],['id'=>$ms['uri'],'type'=>'Note','attributedTo'=>$account['uri'],'to'=>[Federation::PUBLIC],'content'=>$ms['content'],'published'=>$ms['created_at'],'attachment'=>[['type'=>'Image','mediaType'=>'image/jpeg','url'=>'https://mastodon.social/image.jpg']]]);$put($account['uri'],profile('mastodon.social'));
  check(count($app->browser->server('pixel.example')['posts'])===1,'Pixelfed uses its compatible photo timeline');
  $node('shark.example','sharkey');$u=['id'=>'u1','username'=>'bob','name'=>'Bob','avatarUrl'=>'https://shark.example/avatar.jpg'];
  $n=['id'=>'n1','text'=>'A note <script>as text</script>','visibility'=>'public','createdAt'=>gmdate('c'),'user'=>$u,'files'=>[['type'=>'image/png','url'=>'https://shark.example/image.png','comment'=>'A duck','isSensitive'=>true]]];

@@ -66,7 +66,7 @@ try {
             'cron'=>'* * * * * '.escapeshellarg(PHP_BINARY).' '.escapeshellarg($runtime.'/bin/quackpack').' work --seconds=45 --limit=50'])."\n";exit;
     }
     if($cmd==='help'){
-        echo "Quackpack 0.5.0 — one person, one domain, a wider world.\n\n";
+        echo "Quackpack 0.5.1 — one person, one domain, a wider world.\n\n";
         echo "install --url=https://photos.example --username=name --name='Your Name' [--data-dir=/home/USER/quackpack] [--docroot=/absolute/app/path]\n";
         echo "  Private files default to \$HOME/quackpack. No rewrites or Nginx configuration required.\n";
         echo "  Required: PUP_PASSWORD (14+ characters). Optional: PUP_DSN, PUP_DB_USER, PUP_DB_PASSWORD.\n";

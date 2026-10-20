@@ -105,6 +105,12 @@ final class Discovery {
         if(!in_array(Federation::PUBLIC,(array)($post['to']??[]),true))return false;
         $host=strtolower((string)parse_url($actor,PHP_URL_HOST));
         if($host===$this->ownHost()||$host!==strtolower((string)parse_url($id,PHP_URL_HOST))||$s->get('blocks',$host)||$s->get('blocks',$source)||$s->get('discovery_deleted',$id))return false;
+        if($host!==strtolower($source)){
+            try{$canonical=$this->json($id,false,true);}catch(\Throwable){return false;}
+            if(($canonical['id']??'')!==$id||!is_string($canonical['attributedTo']??null)||strtolower((string)parse_url($canonical['attributedTo'],PHP_URL_HOST))!==$host)return false;
+            // Trust only the origin's representation, never the introducing server's text or author.
+            return $this->ingest($canonical,$host);
+        }
         if(!is_string($post['published']??null)||!is_string($post['content']??''))return false;
         $published=strtotime($post['published']);
         if(!$published||$published<time()-7*86400||$published>time()+300)return false;
@@ -144,7 +150,8 @@ final class Discovery {
                 try{$doc=$this->app->browser->mastodonDocument($status);if(!$doc)continue;
                     $stats=['engagement'=>(int)($status['favourites_count']??0)+2*(int)($status['reblogs_count']??0)+(int)($status['replies_count']??0)];
                     $added+=(int)$this->ingest($doc['post'],$domain,$stats);
-                    $profile=$doc['profile'];$s->put('profiles',$profile['id'],['id'=>$profile['id'],
+                    $profile=$doc['profile'];if(strtolower((string)parse_url($profile['id'],PHP_URL_HOST))!==$domain)continue;
+                    $s->put('profiles',$profile['id'],['id'=>$profile['id'],
                         'name'=>is_string($profile['name'])?mb_substr($profile['name'],0,80):'',
                         'preferredUsername'=>is_string($profile['preferredUsername'])?mb_substr($profile['preferredUsername'],0,80):'',
                         'icon'=>['url'=>is_string($profile['icon']['url'])&&Http::validUrl($profile['icon']['url'])?$profile['icon']['url']:'']]);

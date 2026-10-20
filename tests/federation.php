@@ -49,6 +49,7 @@ try{
             if(str_starts_with($route,'/p/'))return $badPhoto?$json(['error'=>'missing'],404):$json($app->store->get('posts',$url));
         }
         if($url===$peerActor['id']&&$method==='GET')return $json($peerActor);
+        if($url===$status['uri']&&$method==='GET')return $json(['id'=>$status['uri'],'type'=>'Note','attributedTo'=>$peerActor['id'],'to'=>[Federation::PUBLIC],'published'=>$status['created_at'],'content'=>$status['content'],'attachment'=>[['type'=>'Document','mediaType'=>'image/jpeg','url'=>'https://peer.example/photo.jpg','name'=>'A real alt description']]]);
         if($url===$peerActor['inbox']&&$method==='POST'){
             $target=($parts['path']??'/').(isset($parts['query'])?'?'.$parts['query']:'');
             $peer->fed->inbox($headers,$body,$target);$deliveries[]=json_decode($body,true,64,JSON_THROW_ON_ERROR);

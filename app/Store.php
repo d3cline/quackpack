@@ -45,6 +45,11 @@ final class Store {
         try { $this->db->exec('CREATE INDEX jobs_due ON jobs(state,due)'); } catch (\PDOException $e) {
             if (!str_contains($e->getMessage(), 'already exists') && !str_contains($e->getMessage(), 'Duplicate key name')) throw $e;
         }
+        if(!$this->get('meta','cache_schema_0_5_1'))$this->tx(function(){
+            // Drop only disposable pre-verification display caches when upgrading.
+            foreach(['profiles','cache','remote','discovery_posts'] as $bucket)$this->query('DELETE FROM records WHERE bucket=?',[$bucket]);
+            $this->put('meta','cache_schema_0_5_1',['version'=>'0.5.1']);
+        });
     }
 
     public function query(string $sql, array $args = []): \PDOStatement {

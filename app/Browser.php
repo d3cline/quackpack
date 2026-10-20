@@ -22,8 +22,9 @@ final class Browser {
         $server=$this->app->store->get('servers',$domain);
         return !empty($server['token'])?['Authorization'=>'Bearer '.$server['token']]:[];
     }
-    public function remember(array $post,?array $actor=null): array {
+    public function remember(array $post,?array $actor=null,?string $source=null): array {
         if(!Federation::isPublic($post)||!Http::validUrl((string)($post['id']??''))||!is_string($post['attributedTo']??null)) throw new \InvalidArgumentException('Only public posts can be opened here.');
+        if($source!==null&&strtolower((string)parse_url($post['id'],PHP_URL_HOST))!==strtolower($source))return $this->app->normalize($this->objectFrom($this->app->remote->document($post['id']),$post['id']));
         if($this->app->store->get('blocks',strtolower((string)parse_url($post['id'],PHP_URL_HOST)))||$this->app->store->get('blocks',strtolower((string)parse_url($post['attributedTo'],PHP_URL_HOST))))throw new \InvalidArgumentException('You have blocked this server.');
         $this->app->store->put('remote',$post['id'],$post);
         if($actor && isset($actor['id']))$this->app->store->put(isset($actor['inbox'])?'actors':'profiles',$actor['id'],$actor);
@@ -47,9 +48,9 @@ final class Browser {
             'to'=>[Federation::PUBLIC],'cc'=>[],'inReplyTo'=>null,'_via'=>'mastodon'];
         return ['post'=>$post,'profile'=>$actor];
     }
-    public function mastodon(array $status): ?array {
+    public function mastodon(array $status,?string $source=null): ?array {
         $doc=$this->mastodonDocument($status);
-        return $doc?$this->remember($doc['post'],$doc['profile']):null;
+        return $doc?$this->remember($doc['post'],$doc['profile'],$source):null;
     }
     public function timeline(string $domain,string $tag='',string $cursor='',bool $photos=true,bool $local=true): array {
         $domain=self::domain($domain);
@@ -77,7 +78,7 @@ final class Browser {
             $notice='Public highlights and people from '.$domain.'. Highlights can include other servers. The complete live timeline is restricted by this server.';
         }
         if(!array_is_list($data))throw new RemoteError(502,'This server does not provide a compatible public timeline. Try opening a person’s @handle instead.');
-        $posts=[];foreach($data as $status){if(!is_array($status))continue;$p=$this->mastodon($status);if($p&&(!$photos||$p['photos']))$posts[]=$p;}
+        $posts=[];foreach($data as $status){if(!is_array($status))continue;try{$p=$this->mastodon($status,$domain);if($p&&(!$photos||$p['photos']))$posts[]=$p;}catch(RemoteError|\InvalidArgumentException|\JsonException){$notice='Some posts could not be verified at their original server.';}}
         $last=$data?end($data):null;
         $r=['posts'=>$posts,'cursor'=>!$accessRequired&&$last?(string)($last['id']??''):'','source'=>$domain,'empty'=>count($data)===0,
             'notice'=>$notice,'access_required'=>$accessRequired,'people'=>$people,'listing'=>$accessRequired?'Public highlights':($local?'Local public timeline':'Federated public timeline')];

@@ -1,3 +1,7 @@
+# Release 0.5.1 — uploads and security fixes
+
+Repairs phone-photo preparation for posts and avatars, bounds inbox key fetching and storage, enforces existing-object and reaction ownership, isolates replay receipts by actor, verifies foreign-origin discovery and API posts, and keeps saved browsing destinations private. Upgrade through the existing repair command; owner data and identity are preserved while disposable display caches are rebuilt. See VALIDATION.txt for tested scope.
+
 # Release 0.5.0 — the ActivityPub browser
 
 Adds an ActivityPub-first public reader, NodeInfo platform detection, server/person/community/channel cards, and native public index/profile adapters for Mastodon-compatible servers (including Pixelfed), Misskey relatives, PeerTube and Lemmy API v3. Closed whole-server feeds can expose public recommendations and directories instead of ending in a token prompt. Generic profiles/posts/collections support embedded and linked objects, pagination, Announce, articles, video/audio previews, polls and events. Existing identity, publishing, themes and managed PHP deployment remain intact.

@@ -4,11 +4,11 @@
 
 Quackpack is a PHP photo journal and personal Fediverse browser. One installation is one person and one ActivityPub actor. There is no registration, user administration, role system, or separate admin application. Sign in as the owner to publish, browse, follow and save. Visitors see your public journal.
 
-**Version 0.5.0: working first implementation, pre-production.** Local tests are not a substitute for interoperability testing on public HTTPS domains. See [docs/RELEASE.md](docs/RELEASE.md) for the exact validation boundary.
+**Version 0.5.1.** Local tests are not a substitute for interoperability testing on public HTTPS domains. See [docs/RELEASE.md](docs/RELEASE.md) for the exact validation boundary.
 
 ## Two jobs, done deliberately
 
-**Keep a photo journal.** Up to ten images per moment, captions and hashtags, alt text, content warnings, photo carousels, a grid or reading view, stable permalinks, profile editing, post editing and deletion. A chronological journal; no recommendations or engagement ranking. Images are decoded, oriented when EXIF support exists, resized to a maximum 2,560-pixel edge, re-encoded as JPEG and stripped of metadata. Transparency is flattened against white. Limit: 15 MB and 16 megapixels per image.
+**Keep a photo journal.** Up to ten images per moment, captions and hashtags, alt text, content warnings, photo carousels, a grid or reading view, stable permalinks, profile editing, post editing and deletion. A chronological journal; no recommendations or engagement ranking. Images are decoded, oriented when EXIF support exists, resized to a maximum 2,560-pixel edge, re-encoded as JPEG and stripped of metadata. Transparency is flattened against white. Phone originals up to 50 MB are prepared in the browser as JPEGs before upload, with a 2,560-pixel edge and a byte budget matched to PHP. HEIC uses the browser decoder (Safari 17+); unsupported decoders show JPEG-export guidance. Server-side limits remain 15 MB and 16 megapixels per uploaded image.
 
 **Wander the open web.** The owner's **The feed** combines discoveries from remote public timelines and actor outboxes. A background crawler finds servers, expands their peer lists, samples active public profiles and keeps collecting. The Mix favors freshness, photos, engagement, followed accounts, saved/liked authors and varied sources; Newest provides publication order. **Open a place** still opens a specific server, person, hashtag or public post. Your following feed contains new public deliveries after a follow is accepted.
 
@@ -30,7 +30,7 @@ ActivityPub defines actor outboxes, not a universal all-server public timeline o
 
 Protocol references: [ActivityPub outboxes](https://www.w3.org/TR/activitypub/#outbox), [Mastodon public timelines](https://docs.joinmastodon.org/methods/timelines/#public), [peer discovery](https://docs.joinmastodon.org/methods/instance/#peers), [profile directories](https://docs.joinmastodon.org/methods/directory/), and [published domain restrictions](https://docs.joinmastodon.org/methods/instance/#domain_blocks).
 
-## Browse across the Fediverse — 0.5.0
+## Browse across the Fediverse — 0.5.1
 
 Open a server domain, `@name@server`, profile, community, channel, public collection or post URL in **Open a place**. Quackpack detects server software through NodeInfo and opens public feeds or indexes. Click a person, community or channel card to browse their posts. Public API profile reads work independently of ActivityPub follow/signature delivery.
 
@@ -71,8 +71,8 @@ After your first follow, **Send recent posts to followers** queues up to 24 exis
 Extract the new release into a private staging directory, then run its CLI. For the standard layout, for example:
 
 ```bash
-unzip quackpack-v0.5.0.zip -d "$HOME/quackpack-update-0.5.0"
-php85 "$HOME/quackpack-update-0.5.0/quackpack/bin/quackpack" repair
+unzip quackpack-v0.5.1.zip -d "$HOME/quackpack-update-0.5.1"
+php85 "$HOME/quackpack-update-0.5.1/quackpack/bin/quackpack" repair
 php85 "$HOME/quackpack/runtime/bin/quackpack" discover --action=start
 php85 "$HOME/quackpack/runtime/bin/quackpack" doctor
 ```

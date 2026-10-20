@@ -51,7 +51,7 @@ final class Web {
                     ['rel'=>'http://webfinger.net/rel/profile-page','type'=>'text/html','href'=>$this->app->url('/')]]],200,'application/jrd+json');
             }
             if($path==='/.well-known/nodeinfo')$this->json(['links'=>[['rel'=>'http://nodeinfo.diaspora.software/ns/schema/2.0','href'=>$this->app->url('/nodeinfo/2.0')]]]);
-            if($path==='/nodeinfo/2.0')$this->json(['version'=>'2.0','software'=>['name'=>'quackpack','version'=>'0.5.0'],'protocols'=>['activitypub'],'services'=>['inbound'=>[],'outbound'=>[]],'openRegistrations'=>false,'usage'=>['users'=>['total'=>1,'activeMonth'=>1,'activeHalfyear'=>1],'localPosts'=>$s->count('posts')],'metadata'=>(object)[]]);
+            if($path==='/nodeinfo/2.0')$this->json(['version'=>'2.0','software'=>['name'=>'quackpack','version'=>'0.5.1'],'protocols'=>['activitypub'],'services'=>['inbound'=>[],'outbound'=>[]],'openRegistrations'=>false,'usage'=>['users'=>['total'=>1,'activeMonth'=>1,'activeHalfyear'=>1],'localPosts'=>$s->count('posts')],'metadata'=>(object)[]]);
             if($path==='/users/'.$this->app->config['username'] && $this->method==='GET')$this->json($this->app->actor(),200,'application/activity+json');
             // A human-facing profile URL must resolve to the same stable actor.
             if($path==='/'&&$this->method==='GET'){
@@ -60,10 +60,12 @@ final class Web {
             }
             if($path==='/inbox' && $this->method==='POST'){
                 if(!$this->rate('inbox',120,60))$this->json(['error'=>'Slow down.'],429);
-                if((int)($_SERVER['CONTENT_LENGTH']??0)>1048576)$this->json(['error'=>'Request too large.'],413);
-                $body=file_get_contents('php://input',false,null,0,1048577);
-                if(strlen($body)>1048576)$this->json(['error'=>'Request too large.'],413);
-                $this->app->fed->inbox(getallheaders(),$body,$_SERVER['REQUEST_URI']);$this->json(['accepted'=>true],202);
+                if((int)($_SERVER['CONTENT_LENGTH']??0)>Federation::MAX_INBOX_BYTES)$this->json(['error'=>'Request too large.'],413);
+                $body=file_get_contents('php://input',false,null,0,Federation::MAX_INBOX_BYTES+1);
+                if(strlen($body)>Federation::MAX_INBOX_BYTES)$this->json(['error'=>'Request too large.'],413);
+                try{$this->app->fed->inbox(getallheaders(),$body,$_SERVER['REQUEST_URI']);}
+                catch(RemoteError $e){if(in_array($e->status,[429,503],true)){header('Retry-After: '.max(1,$e->retryAfter));$this->json(['error'=>$e->getMessage()],$e->status);}throw $e;}
+                $this->json(['accepted'=>true],202);
             }
             if(in_array($path,['/outbox','/followers','/following'],true)&&$this->method==='GET')$this->collection($path);
             if(preg_match('~^/a/[a-f0-9]{32}$~',$path)&&$this->method==='GET'){
@@ -76,7 +78,7 @@ final class Web {
                 if(!is_file($file))$this->json(['error'=>'Not found.'],404);
                 header('Content-Type: image/jpeg');header('Cache-Control: public, max-age=31536000, immutable');header('Content-Length: '.filesize($file));readfile($file);exit;
             }
-            if($path==='/health')$this->json(['app'=>'quackpack','version'=>'0.5.0','status'=>'ok']);
+            if($path==='/health')$this->json(['app'=>'quackpack','version'=>'0.5.1','status'=>'ok']);
             if($path==='/robots.txt'){header('Content-Type: text/plain');echo "User-agent: *\nDisallow: /api/\nDisallow: /explore\nDisallow: /saved\nDisallow: /settings\n";exit;}
             // Federation is stateless; owner sessions begin only on UI and API routes.
             session_name('pup_owner');session_save_path($this->app->config['data_dir'].'/sessions');
@@ -95,6 +97,7 @@ final class Web {
             if(str_starts_with($path,'/api/')){
                 if($path==='/api/feed'&&$this->method==='GET'&&($_GET['kind']??'journal')==='journal')$this->read('feed');
                 $this->requireOwner();
+                if($this->method==='POST'&&($max=ini_parse_quantity(ini_get('post_max_size')))>0&&(int)($_SERVER['CONTENT_LENGTH']??0)>$max)$this->json(['error'=>'The upload exceeded the PHP post limit. Try fewer photos or increase post_max_size.'],413);
                 if($this->method==='POST'){$this->csrf();$this->mutate(substr($path,5),$this->input());}
                 if($this->method==='GET')$this->read(substr($path,5));
                 $this->json(['error'=>'Method not allowed.'],405);
@@ -118,10 +121,11 @@ final class Web {
             $master=null;
             if($view==='feed'){$this->app->discovery->boot();$master=$this->app->feed->page();$posts=$master['posts'];}
             if(!$owner)foreach($posts as &$publicPost){$publicPost['saved']=false;$publicPost['liked']=false;}unset($publicPost);
-            $servers=[];foreach($s->each('servers') as $server){unset($server['token']);$servers[]=$server;}
+            $servers=[];if($owner)foreach($s->each('servers') as $server){unset($server['token']);$servers[]=$server;}
             $state=['view'=>$view,'owner'=>$owner,'csrf'=>$_SESSION['csrf'],'routing'=>$this->app->config['routing']??'pretty','profile'=>$profile,'handle'=>'@'.$this->app->config['username'].'@'.parse_url($this->app->url(),PHP_URL_HOST),
                 'posts'=>$posts,'post_count'=>$s->count('posts'),'followers'=>$s->count('followers'),'following'=>$s->count('follows'),
                 'servers'=>$servers,'single'=>(bool)$post,'links'=>$this->app->links(!($owner&&$view==='settings')),
+                'uploads'=>$owner?['file_bytes'=>ini_parse_quantity(ini_get('upload_max_filesize')),'post_bytes'=>ini_parse_quantity(ini_get('post_max_size'))]:null,
                 'feed_cursor'=>$master['cursor']??'','discovery'=>$view==='feed'?$this->app->discovery->status():null];
             $app=$this->app;require dirname(__DIR__).'/views/shell.php';
         } catch(RemoteError $e){$this->json(['error'=>$e->getMessage(),'remote_status'=>$e->status,'access_required'=>$e->authenticationRequired],502);}

@@ -1,50 +1,44 @@
-Quackpack 0.5.0 — cross-platform ActivityPub browser
+Quackpack 0.5.1 — security and phone uploads
 2026-10-20
 
-PASS: 65 core PHP assertions on SQLite and 65 on MariaDB.
-PASS: 51 discovery/ranking assertions on SQLite and 51 on MariaDB.
-PASS: 25 federation/browsing assertions on SQLite and 25 on MariaDB.
-PASS: 33 cross-platform browser assertions on SQLite and 33 on MariaDB.
-PASS: 61 CLI/web request contracts.
-PASS: 73 plain Nginx/FastCGI hosting assertions.
-PASS: 32 installer, recovery, PHP-selection and running-upgrade assertions.
-PASS: 48 frontend DOM interaction assertions.
-PASS: 24 theme preference/persistence/contrast assertions.
-PASS: PHP (23 entrypoints), JavaScript, Python and bash syntax checks.
-Total: 586 behavior assertions, plus syntax.
+release-run.log: PASS: 65 assertions on sqlite
+release-discovery.log: PASS: 51 discovery and ranked-feed assertions
+release-federation.log: PASS: 25 federation/browsing assertions on sqlite
+release-browsing.log: PASS: 33 cross-platform browser assertions on sqlite
+release-security.log: PASS: 43 security regression assertions on sqlite
+browser-mysql-core.log: PASS: 65 assertions on mysql
+browser-mysql-discovery.log: PASS: 51 discovery and ranked-feed assertions
+browser-mysql-federation.log: PASS: 25 federation/browsing assertions on mysql
+browser-mysql-platforms.log: PASS: 33 cross-platform browser assertions on mysql
+release-mysql-security.log: PASS: 43 security regression assertions on mysql
+release-web.log: PASS: 61 CLI and web contract assertions
+release-nginx.log: PASS: 75 plain Nginx/FastCGI hosting assertions
+release-install.log: PASS: 31 installer and PHP-selection regression assertions
+release-ui.log: PASS: 51 frontend DOM interaction assertions
+release-theme.log: PASS: 24 theme preference and contrast assertions
+release-photos.log: PASS: 18 photo preparation assertions (browser decoding simulated)
 
-Cross-platform fixtures cover Mastodon.social-style restricted timeline and
-recommendations with a readable directory; anonymous public account posts;
-Pixelfed-compatible feeds; Misskey/Sharkey public notes, people, photos,
-warnings and highlights fallback; PeerTube indexes/channels/video previews;
-Lemmy API v3 discussions/communities; and generic ActivityPub publishers.
+Total: 694 behavior assertions.
+Syntax: 24 PHP entrypoints, 6 JavaScript files, 3 Python files, 2 shell scripts.
 
-Generic protocol checks cover HTML and HTTP alternate links, canonical actor
-and object resolution, embedded first pages, Collection/OrderedCollection,
-linked objects with bounded continuation, filter/host-bound cursors, public
-addressing, Question options, Articles, cross-origin delegated actor outboxes,
-canonical refetch of remote Announce and Group objects, blocked cached pages,
-and unsafe/relative link handling. No remote markup is executed.
+Local PHP: 8.3.6. Both SQLite and MariaDB tested. PHP 8.5 was not available
+in this environment. Plain Nginx/FastCGI fixtures require no application
+rewrites, .htaccess, or private-file deny rules. A running 0.5.0 installation
+was upgraded while preserving its exact configuration, keys, actor/post URLs
+and managed links. Source archives include dotfiles; the installer also
+regenerates missing PHP settings.
 
-The DOM suite covers server directory cards, escaped remote names, account
-navigation/history, profile pagination/filter retention, media preview links,
-and existing feed/discovery/theme interactions. DOM checks do not constitute
-real-browser visual QA. PeerTube video/audio playback and poll voting open
-the original app; no native media player or voting UI was added.
+Security regressions cover invalid-signature cache writes, first-contact key
+fetch budgets and lock contention, availability of cached legitimate keys,
+queue backpressure, same-host cross-actor Create/Update and reaction ownership,
+actor-scoped replay receipts, canonical foreign-origin post resolution,
+foreign profile-cache poisoning, private saved-place metadata, cache quotas,
+retention, and idempotent disposal of legacy display caches.
 
-The Nginx fixture uses ordinary directory indexes and a generic PHP handler,
-without application rewrites or private-file deny rules. Upgrade tests use
-0.4.1 and preserve exact configuration, keys, actor/post URLs, links and data.
+Photo preparation tests simulate native decoding. The DOM suite verifies
+that selected HEIC originals are prepared and submitted as JPEGs within PHP
+limits. A physical iPhone/Safari acceptance test was not performed. HEIC uses
+the browser decoder; unsupported browsers receive explicit export guidance.
 
-All cross-platform network paths use controlled protocol fixtures. Attempts
-to refresh live Mastodon/public repository data during this build timed out;
-this is not a live acceptance test for every listed implementation or fork.
-Earlier 0.4.1 checks reproduced mastodon.social's authenticated-user 422.
-Native endpoint versions/settings may vary; Lemmy v4-only public indexes
-are not implemented, while public AP community/profile URLs use the generic
-reader. Servers that expose no index cannot be enumerated by domain alone.
-Public profiles, posts and collections are readable to the extent that the
-remote server exposes them. No deployment or live federation action occurred.
-
-Background discovery coverage is unchanged by the interactive adapters.
-See README for the current compatibility paths, limits and upgrade command.
+All federation and platform interactions in these tests use controlled
+fixtures. No production deployment or live peer delivery is claimed.

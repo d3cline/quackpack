@@ -218,6 +218,9 @@ http {{
         check(request(route('/api/resend'),'POST',b'{}',{'Cookie':auth_headers['Cookie'],'Content-Type':'application/json'})[0]==403,'journal resend requires a valid CSRF token')
         status,feed,_=request(route('/feed'),headers=auth_headers)
         check(status==200 and b'id="discovery-panel"' in feed,'master feed and status panel render through plain PHP routing')
+        upload_state=json.loads(re.search(rb'<script type="application/json" id="pup-state">(.*?)</script>',feed,re.S).group(1))
+        check(upload_state['uploads']['file_bytes']>0 and upload_state['uploads']['post_bytes']>0,'owner receives effective PHP upload limits for photo preparation')
+        check(request('/assets/photos.js')[0]==200 and feed.index(b'/assets/photos.js?')<feed.index(b'/assets/app.js?'),'photo preparation is deployed and loaded before the app script')
         check(request(route('/api/discovery'),'POST',json.dumps({'action':'pause'}).encode(),auth_headers)[0]==200,'owner can pause the background crawler over real HTTP')
         links=[{'label':'My music','url':'https://music.example/','enabled':True}]
         check(request(route('/api/links'),'POST',json.dumps({'links':links}).encode(),auth_headers)[0]==200,'owner can manage link stack through query API')

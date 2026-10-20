@@ -9,7 +9,10 @@ final class Media {
         try {
             foreach($files as $i=>$file){
                 if(($file['error']??UPLOAD_ERR_NO_FILE)===UPLOAD_ERR_NO_FILE)continue;
-                if(($file['error']??1)!==UPLOAD_ERR_OK)throw new \InvalidArgumentException('A photo did not upload. Check the server upload limit.');
+                if(($file['error']??1)!==UPLOAD_ERR_OK)throw new \InvalidArgumentException(match($file['error']??1){
+                    UPLOAD_ERR_INI_SIZE,UPLOAD_ERR_FORM_SIZE=>'A photo exceeded the server upload limit. Try a smaller photo.',
+                    UPLOAD_ERR_PARTIAL=>'The photo upload was interrupted. Please try again.',
+                    default=>'The server could not receive the photo. Check its temporary upload directory and disk space.'});
                 if(count($result)>=10)throw new \InvalidArgumentException('Use up to 10 photos in one post.');
                 if(!is_uploaded_file($file['tmp_name']))throw new \InvalidArgumentException('Invalid upload.');
                 $image=$this->process($file['tmp_name']);

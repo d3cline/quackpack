@@ -77,7 +77,7 @@ final class Platforms {
         foreach(array_slice($rows,0,40) as $row){
             if(!is_array($row))continue;
             $doc=match($family){'misskey'=>$this->misskeyPost($row,$domain),'peertube'=>$this->videoPost($row,$domain),'lemmy'=>$this->lemmyPost($row,$domain),default=>$this->app->browser->mastodonDocument($row)};
-            if(!$doc)continue;$p=$this->app->browser->remember($doc['post'],$doc['profile']);$all[]=$p;
+            if(!$doc)continue;try{$p=$this->app->browser->remember($doc['post'],$doc['profile'],$domain);}catch(RemoteError|\InvalidArgumentException|\JsonException){continue;}$all[]=$p;
             if(!$photos||$p['photos'])$posts[]=$p;
         }
         $autoAll=$family==='peertube'||($family==='lemmy'&&$photos&&!$posts&&$all);if($autoAll)$posts=$all;

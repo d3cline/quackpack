@@ -13,6 +13,7 @@ final class Feed {
     private function allowed(array $p): bool {
         $s=$this->app->store;$id=$p['id']??'';$actor=$p['attributedTo']??'';
         if(!is_string($id)||!is_string($actor)||!is_string($p['content']??'')||!Federation::isPublic($p)||$s->get('discovery_deleted',$id))return false;
+        if(isset($p['_discovery'])&&strtolower((string)parse_url($id,PHP_URL_HOST))!==strtolower((string)($p['_discovery']['source']??'')))return false;
         return !$s->get('blocks',strtolower((string)parse_url($actor,PHP_URL_HOST)))&&!$s->get('blocks',$p['_discovery']['source']??'');
     }
     public function page(string $cursor='',string $mode='mix',bool $photos=true): array {

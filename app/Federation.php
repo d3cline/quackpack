@@ -4,13 +4,39 @@ namespace Pup;
 
 final class Federation {
     public const PUBLIC='https://www.w3.org/ns/activitystreams#Public';
+    public const MAX_INBOX_BYTES=60000;
     public function __construct(private App $app) {}
+    private function cacheActor(string $id,array $actor): void {
+        $s=$this->app->store;
+        $actor=array_intersect_key($actor,array_flip(['id','type','inbox','outbox','url','preferredUsername','name','summary','icon','publicKey','_fetched']));
+        if(strlen(App::json($actor))>65536)throw new \InvalidArgumentException('The actor document is too large.');
+        if(!$s->get('actors',$id)&&$s->count('actors')>=5000){
+            $old=$s->query('SELECT ref FROM records WHERE bucket=? ORDER BY updated,id LIMIT 1',['actors'])->fetchColumn();
+            if($old!==false)$s->remove('actors',$old);
+        }
+        $s->put('actors',$id,$actor);
+    }
+    private function keyActor(string $id,bool $refresh=false): array {
+        $s=$this->app->store;$cached=$s->get('actors',$id);
+        if(!$refresh&&$cached&&($cached['_fetched']??0)>time()-21600)return $cached;
+        $ref='inbox-keys:'.(int)floor(time()/60);$host=strtolower((string)parse_url($id,PHP_URL_HOST));
+        $s->tx(function()use($s,$ref,$host){
+            $budget=$s->get('attempts',$ref)??['count'=>0,'hosts'=>[]];
+            if($budget['count']>=40||($budget['hosts'][$host]??0)>=8)throw new RemoteError(429,'Actor verification is busy. Please retry later.',60);
+            $budget['count']++;$budget['hosts'][$host]=($budget['hosts'][$host]??0)+1;$s->put('attempts',$ref,$budget);
+        });
+        // Canonical actor IDs must return JSON directly; no HTML/alternate-link crawl in the public inbox.
+        $r=$this->app->http->request($id,'GET',null,[],true,65536,1,4);
+        $actor=json_decode($r['body'],true,32,JSON_THROW_ON_ERROR);
+        if(!is_array($actor)||($actor['id']??'')!==$id||!in_array($actor['type']??'',Remote::ACTORS,true)||!Http::validUrl((string)($actor['inbox']??'')))throw new \InvalidArgumentException('This address is not an ActivityPub profile.');
+        $actor['_fetched']=time();return $actor;
+    }
     public function actor(string $id,bool $refresh=false): array {
         $cached=$this->app->store->get('actors',$id);
         if (!$refresh && $cached && ($cached['_fetched']??0)>time()-21600) return $cached;
         $a=$this->app->remote->document($id);
         if (($a['id']??'')!==$id || !in_array($a['type']??'', ['Person','Service','Application','Group','Organization'],true) || !Http::validUrl((string)($a['inbox']??''))) throw new \InvalidArgumentException('This address is not an ActivityPub profile.');
-        $a['_fetched']=time();$this->app->store->put('actors',$id,$a);return $a;
+        $a['_fetched']=time();$this->cacheActor($id,$a);return $a;
     }
     public function resolve(string $input): array {
         $input=trim($input);
@@ -119,6 +145,7 @@ final class Federation {
         });
     }
     public function verify(array $headers,string $body,string $target,string $method='POST'): array {
+        if(strlen($body)>self::MAX_INBOX_BYTES)throw new \InvalidArgumentException('The activity is too large.');
         $headers=array_change_key_case($headers,CASE_LOWER);
         $date=strtotime($headers['date']??'');
         if (!$date || abs(time()-$date)>43200) throw new \InvalidArgumentException('The signature date is missing or expired.');
@@ -138,24 +165,39 @@ final class Federation {
             else {$value=$headers[$name]??null;if($value===null)throw new \InvalidArgumentException('Missing signed header.');}
             $lines[]=$name.': '.$value;
         }
-        $actor=$this->actor($activity['actor']);
+        $lock=null;
+        $fetch=function(bool $refresh=false)use(&$lock,$activity):array{
+            if($lock===null){
+                $lock=fopen($this->app->config['data_dir'].'/inbox-verify.lock','c');
+                if(!$lock){$lock=null;throw new RemoteError(503,'Actor verification is unavailable. Retry later.',60);}
+                if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);$lock=null;throw new RemoteError(429,'Actor verification is busy. Retry later.',5);}
+            }
+            return $this->keyActor($activity['actor'],$refresh);
+        };
+        try {
+        $cached=$this->app->store->get('actors',$activity['actor']);
+        $actor=$cached&&($cached['_fetched']??0)>time()-21600?$cached:$fetch();
         $verify=function(array $actor)use($s,$lines):bool{
             $key=$actor['publicKey']??[];
             if (isset($key[0])) $key=$key[0];
+            if(!is_array($key)||!is_string($key['publicKeyPem']??null)||strlen($key['publicKeyPem'])>16384)return false;
             if (($key['id']??'')!==$s['keyId']||($key['owner']??'')!==$actor['id']) return false;
             $bytes=base64_decode($s['signature'],true);
             return $bytes!==false && @openssl_verify(implode("\n",$lines),$bytes,$key['publicKeyPem']??'',OPENSSL_ALGO_SHA256)===1;
         };
         $valid=$verify($actor);
         // A recently refreshed key must not trigger repeated fetches on forged requests.
-        if (!$valid && ($actor['_fetched']??0)<time()-60) $valid=$verify($this->actor($activity['actor'],true));
+        if (!$valid && ($actor['_fetched']??0)<time()-60) {$actor=$fetch(true);$valid=$verify($actor);}
         if (!$valid) throw new \InvalidArgumentException('The signature could not be verified.');
+        $this->cacheActor($activity['actor'],$actor);
         return $activity;
+        } finally {if($lock!==null){flock($lock,LOCK_UN);fclose($lock);}}
     }
     public function inbox(array $headers,string $body,string $target): void {
+        if((int)$this->app->store->query("SELECT COUNT(*) FROM jobs WHERE state='pending'")->fetchColumn()>=2000)throw new RemoteError(429,'The inbox queue is full. Retry later.',60);
         $activity=$this->verify($headers,$body,$target);
         $this->app->store->tx(function()use($activity){
-            if (!$this->app->store->add('receipts',$activity['id'],['id'=>$activity['id']])) return;
+            if (!$this->app->store->add('receipts',$activity['actor']."\n".$activity['id'],['id'=>$activity['id'],'actor'=>$activity['actor']])) return;
             $this->enqueue(['kind'=>'receive','activity'=>$activity]);
         });
     }
@@ -169,6 +211,7 @@ final class Federation {
         if ($s->get('blocks',strtolower((string)parse_url($who,PHP_URL_HOST)))) return;
         if($type==='Follow' && $id===$this->app->actorId()) {
             $s->tx(function()use($s,$who,$actor,$a){
+                if(!$s->get('followers',$who)&&$s->count('followers')>=10000)return;
                 $s->put('followers',$who,['id'=>$who,'actor'=>$actor,'follow_id'=>$a['id']]);
                 $this->deliver($this->activity('Accept',$a,$who),$actor);
             });
@@ -181,6 +224,10 @@ final class Federation {
             unset($obj['_discovery']);
             if (($obj['attributedTo']??'')!==$who || !Http::validUrl((string)$id) || parse_url($id,PHP_URL_HOST)!==parse_url($who,PHP_URL_HOST)) return;
             if (!in_array($obj['type']??'', ['Note','Article','Image'],true)) return;
+            foreach(['posts','timeline','remote','saved','comments','discovery_posts'] as $bucket){
+                $existing=$s->get($bucket,$id);
+                if($existing&&($existing['attributedTo']??'')!==$who)return;
+            }
             $following=$s->get('follows',$who);
             $reply=is_string($obj['inReplyTo']??null)?$s->get('posts',$obj['inReplyTo']):null;
             if (!self::isPublic($obj)) {
@@ -195,11 +242,12 @@ final class Federation {
             if (($following['state']??'')==='accepted') $s->put('timeline',$id,$obj,strtotime($obj['published']??'now')?:time());
             if($s->get('remote',$id)) $s->put('remote',$id,$obj);
             if($s->get('saved',$id)) $s->put('saved',$id,$obj);
-            if($reply) $s->put('comments',$id,$obj,strtotime($obj['published']??'now')?:time());
+            if($reply&&($s->get('comments',$id)||$s->count('comments')<20000)) $s->put('comments',$id,$obj,strtotime($obj['published']??'now')?:time());
         } elseif($type==='Delete') {
             $this->forget($id,$who);
         } elseif($type==='Like' && $s->get('posts',$id)) {
-            $s->put('reactions',$a['id'],['id'=>$a['id'],'actor'=>$who,'post'=>$id,'type'=>'Like']);
+            $existing=$s->get('reactions',$a['id']);if($existing&&($existing['actor']??'')!==$who)return;
+            if($s->get('reactions',$a['id'])||$s->count('reactions')<20000)$s->put('reactions',$a['id'],['id'=>$a['id'],'actor'=>$who,'post'=>$id,'type'=>'Like']);
         } elseif($type==='Undo' && is_array($obj) && ($obj['actor']??null)===$who) {
             if(($obj['type']??'')==='Follow') {
                 $f=$s->get('followers',$who);
@@ -248,9 +296,14 @@ final class Federation {
                 $processed++;
             }
             $s->put('meta','worker',['last_run'=>time()]);
-            $s->query("DELETE FROM jobs WHERE state='done' AND updated<?",[time()-7*86400]);
-            foreach(['remote'=>7,'receipts'=>14,'cache'=>1,'attempts'=>1,'feed_seen'=>7] as $bucket=>$days)
+            $s->query("DELETE FROM jobs WHERE state IN ('done','failed') AND updated<?",[time()-7*86400]);
+            foreach(['remote'=>7,'actors'=>7,'profiles'=>7,'receipts'=>14,'cache'=>1,'attempts'=>1,'feed_seen'=>7] as $bucket=>$days)
                 $s->query('DELETE FROM records WHERE bucket=? AND updated<?',[$bucket,time()-$days*86400]);
+            foreach(['actors'=>5000,'profiles'=>10000] as $bucket=>$maximum){
+                $excess=$s->count($bucket)-$maximum;if($excess<=0)continue;
+                $batch=min(1000,$excess);$rows=$s->query("SELECT ref FROM records WHERE bucket=? ORDER BY updated,id LIMIT $batch",[$bucket])->fetchAll();
+                foreach($rows as $row)$s->remove($bucket,$row['ref']);
+            }
             // Keep received history bounded; saved posts have their own durable bucket.
             $s->query('DELETE FROM records WHERE bucket=? AND created<?',['timeline',time()-90*86400]);
         } finally { flock($lock,LOCK_UN);fclose($lock); }

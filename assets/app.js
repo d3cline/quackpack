@@ -21,7 +21,7 @@
       else {init.headers['Content-Type']='application/json';init.body=JSON.stringify(data);}
     }
     const r = await fetch(route(path),init); let value;
-    try {value=await r.json();} catch {throw new Error('The server did not return a readable response.');}
+    try {value=await r.json();} catch {throw new Error(r.status===413?'The upload exceeded the web server limit. Try fewer photos in one post.':'The server did not return a readable response.');}
     if(!r.ok){const error=new Error(value.error||'That request could not be completed.');error.accessRequired=!!value.access_required;throw error;} return value;
   };
   const toast = (text, error=false) => {const el=$('#toast');el.textContent=text;el.classList.toggle('error',error);el.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.hidden=true,5500);};
@@ -126,15 +126,20 @@
   $$('.compose-open').forEach(b=>b.onclick=()=>openComposer());
   $('#photo-input').addEventListener('change',e=>{
     const incoming=[...e.target.files];if(files.length+incoming.length>10){toast('Choose up to 10 photos.',true);return;}
-    if(incoming.some(f=>f.size>15*1024*1024)){toast('Each photo must be under 15 MB.',true);return;}
+    if(incoming.some(f=>f.size>50*1024*1024)){toast('Choose photos under 50 MB. They will be resized before uploading.',true);return;}
     files.push(...incoming);previews();e.target.value='';
   });
   $$('.close-dialog').forEach(b=>b.onclick=()=>b.closest('dialog').close());
   $('#composer').addEventListener('close',()=>releasePreviews());
   $('#compose-form').addEventListener('submit',e=>{e.preventDefault();run(async()=>{
     if(!e.target.elements.edit.value&&!e.target.elements.reply_to.value&&!files.length)throw new Error('Choose a photo first.');
-    const body=new FormData(e.target);body.delete('photos[]');files.forEach(f=>body.append('photos[]',f));
-    await api('/api/post',body);$('#composer').close();toast('Your moment is published.');location.href=route('/');
+    const body=new FormData(e.target);body.delete('photos[]');const selected=[...files],status=$('#photo-status');
+    try {
+      const budget=selected.length?QuackpackPhotos.budget(state.uploads,selected.length):0;
+      for(let i=0;i<selected.length;i++){if(status)status.textContent=`Preparing photo ${i+1} of ${selected.length}…`;body.append('photos[]',await QuackpackPhotos.prepare(selected[i],budget));}
+      if(status)status.textContent='Uploading…';
+      await api('/api/post',body);$('#composer').close();toast('Your moment is published.');location.href=route('/');
+    }finally{if(status)status.textContent='';}
   },e.submitter);});
   function openViewer(p,i=0){viewerPost=p;viewerIndex=i;updateViewer();$('#viewer').showModal();}
   function updateViewer(){const photo=viewerPost.photos[viewerIndex];$('#viewer-image').src=safeURL(photo.url);$('#viewer-image').alt=photo.alt||'';$('#viewer-caption').textContent=`${viewerIndex+1} / ${viewerPost.photos.length} · ${photo.alt||viewerPost.content}`;$('.photo-prev').hidden=$('.photo-next').hidden=viewerPost.photos.length<2;}
@@ -159,7 +164,7 @@
   $('#remove-place').onclick=()=>run(async()=>{await api('/api/server',{domain:$('#place-form').elements.domain.value,remove:true});location.reload();},$('#remove-place'));
   $('#login-form')?.addEventListener('submit',e=>{e.preventDefault();run(async()=>{await api('/login',{password:e.target.elements.password.value});location.href=route('/feed');},e.submitter);});
   $('#logout')?.addEventListener('click',()=>run(async()=>{await api('/logout',{});sessionStorage.clear();location.href=route('/');}));
-  $('#profile-form')?.addEventListener('submit',e=>{e.preventDefault();run(async()=>{await api('/api/profile',new FormData(e.target));toast('Your profile is updated.');location.reload();},e.submitter);});
+  $('#profile-form')?.addEventListener('submit',e=>{e.preventDefault();run(async()=>{const body=new FormData(e.target),photo=e.target.elements.avatar.files[0];if(photo)body.set('avatar',await QuackpackPhotos.prepare(photo,QuackpackPhotos.budget(state.uploads)));await api('/api/profile',body);toast('Your profile is updated.');location.reload();},e.submitter);});
   let links = (state.links||[]).map(item=>({...item}));
   function collectLinks() {
     links=$$('.link-editor-row').map(row=>({label:$('[data-link-label]',row).value,url:$('[data-link-url]',row).value,enabled:$('[data-link-enabled]',row).checked}));
