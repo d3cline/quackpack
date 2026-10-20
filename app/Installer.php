@@ -4,7 +4,7 @@ namespace Pup;
 
 final class Installer {
     private const PRIVATE_DIRS=['app','views','bin','deploy','docs','tests','public'];
-    private const PRIVATE_FILES=['README.md','VALIDATION.txt','LICENSE','composer.json','.gitignore'];
+    private const PRIVATE_FILES=['README.md','VALIDATION.txt','LICENSE','composer.json','.gitignore','update.php'];
     private const DEFAULT_INI="upload_max_filesize = 15M\npost_max_size = 160M\nmemory_limit = 256M\nmax_file_uploads = 10\nexpose_php = Off\ndisplay_errors = Off\n";
 
     public static function documentRoot(string $source,?string $requested): string {
@@ -56,6 +56,13 @@ final class Installer {
         $entry.="try {\n    require ".var_export($runtime.'/app/bootstrap.php',true).";\n    (new Pup\\Web(pup()))->run();\n";
         $entry.="} catch (Throwable \$e) {\n    error_log('Quackpack startup: '.\$e->getMessage());\n    http_response_code(503);\n    header('Content-Type: text/plain; charset=utf-8');\n    echo \"Quackpack is temporarily unavailable.\\n\";\n}\n";
         self::write($root.'/index.php',$entry,0644);
+        // A stable CLI lives beside the public entrypoint and uses the same actual paths.
+        // It returns 404 over HTTP and never starts a web session or exposes configuration.
+        $cli="<?php\nif (PHP_SAPI !== 'cli') { http_response_code(404); exit; }\n";
+        $cli.="if (PHP_VERSION_ID < 80200) { fwrite(STDERR, \"Use php85 quackpack.php.\\n\"); exit(1); }\n";
+        $cli.="define('QUACKPACK_CONFIG_FILE', ".var_export($configFile,true).");\n";
+        $cli.="require ".var_export($runtime.'/bin/pup',true).";\n";
+        self::write($root.'/quackpack.php',$cli,0644);
         if(is_link($root.'/.well-known'))throw new \RuntimeException('Discovery directories must not be symlinks.');
         foreach(['webfinger','nodeinfo'] as $endpoint){
             $directory=$root.'/.well-known/'.$endpoint;

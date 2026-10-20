@@ -10,10 +10,10 @@ $link=static function(string $href,string $label,string $symbol,string $name)use
 <title><?= $e($view==='journal'?$profile['name']:$titles[$view]) ?> · Quackpack</title>
 <meta name="description" content="<?= $e($profile['bio']) ?>"><meta name="theme-color" content="#f8f7f3">
 <link rel="alternate" type="application/activity+json" href="<?= $e($post['id']??$app->actorId()) ?>">
-<script src="/assets/theme.js?v=0.5.1"></script>
-<link rel="icon" href="/assets/quackpack-logo.png" type="image/png"><link rel="stylesheet" href="/assets/app.css?v=0.5.1">
-<script defer src="/assets/photos.js?v=0.5.1"></script>
-<script defer src="/assets/app.js?v=0.5.1"></script></head>
+<script src="/assets/theme.js?v=0.5.3"></script>
+<link rel="icon" href="/assets/quackpack-logo.png" type="image/png"><link rel="stylesheet" href="/assets/app.css?v=0.5.3">
+<script defer src="/assets/photos.js?v=0.5.3"></script>
+<script defer src="/assets/app.js?v=0.5.3"></script></head>
 <body><a class="skip" href="#main">Skip to content</a>
 <aside class="rail">
  <a href="/" class="brand" aria-label="Quackpack home"><img src="/assets/quackpack-logo.png" alt="" width="36" height="36"><b>quackpack<span>.</span></b></a>
@@ -55,7 +55,7 @@ $link=static function(string $href,string $label,string $symbol,string $name)use
 <section class="panel"><h2>Connected, quietly.</h2><p class="muted">Your address <button class="handle-copy text-link"><?= $e($state['handle']) ?> ⧉</button></p><div id="delivery-status" aria-live="polite">Checking delivery…</div><div id="federation-check-results" aria-live="polite"></div><div class="federation-actions"><button id="check-federation" class="button secondary" type="button">Check public endpoints</button><button id="retry-jobs" class="button secondary" type="button">Retry failed deliveries</button><button id="resend-posts" class="text-link" type="button">Send recent posts to followers</button></div></section>
 <section class="panel"><h2>People you follow</h2><div id="follow-list"></div></section>
 <section class="panel"><h2>Your boundaries</h2><p class="muted">Blocked servers cannot deliver posts here or appear in your browser.</p><form id="block-form" class="inline-form"><label class="sr-only" for="block-domain">Server to block</label><input id="block-domain" name="domain" placeholder="server.example" required><button class="button secondary">Block</button></form><div id="block-list"></div></section></div>
-<div class="settings-footer"><span>Quackpack 0.5.1 · Your photos belong here.</span><button type="button" id="logout" class="text-link">Sign out ↗</button></div>
+<div class="settings-footer"><span>Quackpack 0.5.3 · Your photos belong here.</span><button type="button" id="logout" class="text-link">Sign out ↗</button></div>
 <?php elseif($view==='login'): ?>
 <section class="login-wrap"><img src="/assets/quackpack-logo.png" width="60" height="60" alt=""><div class="eyebrow">YOUR LITTLE CORNER</div><h1>Welcome home.</h1><p>Sign in to publish and wander.</p><form id="login-form"><label for="password">Your password</label><input id="password" name="password" type="password" autocomplete="current-password" required autofocus><button class="button primary">Let me in <span>↗</span></button></form><a class="muted" href="/">Back to the journal</a></section>
 <?php endif; ?>

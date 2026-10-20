@@ -51,7 +51,7 @@ final class Web {
                     ['rel'=>'http://webfinger.net/rel/profile-page','type'=>'text/html','href'=>$this->app->url('/')]]],200,'application/jrd+json');
             }
             if($path==='/.well-known/nodeinfo')$this->json(['links'=>[['rel'=>'http://nodeinfo.diaspora.software/ns/schema/2.0','href'=>$this->app->url('/nodeinfo/2.0')]]]);
-            if($path==='/nodeinfo/2.0')$this->json(['version'=>'2.0','software'=>['name'=>'quackpack','version'=>'0.5.1'],'protocols'=>['activitypub'],'services'=>['inbound'=>[],'outbound'=>[]],'openRegistrations'=>false,'usage'=>['users'=>['total'=>1,'activeMonth'=>1,'activeHalfyear'=>1],'localPosts'=>$s->count('posts')],'metadata'=>(object)[]]);
+            if($path==='/nodeinfo/2.0')$this->json(['version'=>'2.0','software'=>['name'=>'quackpack','version'=>'0.5.3'],'protocols'=>['activitypub'],'services'=>['inbound'=>[],'outbound'=>[]],'openRegistrations'=>false,'usage'=>['users'=>['total'=>1,'activeMonth'=>1,'activeHalfyear'=>1],'localPosts'=>$s->count('posts')],'metadata'=>(object)[]]);
             if($path==='/users/'.$this->app->config['username'] && $this->method==='GET')$this->json($this->app->actor(),200,'application/activity+json');
             // A human-facing profile URL must resolve to the same stable actor.
             if($path==='/'&&$this->method==='GET'){
@@ -78,7 +78,7 @@ final class Web {
                 if(!is_file($file))$this->json(['error'=>'Not found.'],404);
                 header('Content-Type: image/jpeg');header('Cache-Control: public, max-age=31536000, immutable');header('Content-Length: '.filesize($file));readfile($file);exit;
             }
-            if($path==='/health')$this->json(['app'=>'quackpack','version'=>'0.5.1','status'=>'ok']);
+            if($path==='/health')$this->json(['app'=>'quackpack','version'=>'0.5.3','status'=>'ok']);
             if($path==='/robots.txt'){header('Content-Type: text/plain');echo "User-agent: *\nDisallow: /api/\nDisallow: /explore\nDisallow: /saved\nDisallow: /settings\n";exit;}
             // Federation is stateless; owner sessions begin only on UI and API routes.
             session_name('pup_owner');session_save_path($this->app->config['data_dir'].'/sessions');
@@ -175,7 +175,7 @@ final class Web {
         }
         if($route==='comments'){
             $id=(string)($_GET['id']??'');$comments=[];
-            foreach($s->each('comments') as $p)if(($p['inReplyTo']??'')===$id)$comments[]=$this->app->normalize($p);
+            foreach($s->each('comments') as $p)if(($p['inReplyTo']??'')===$id){$reply=$this->app->normalize($p);if($reply['photos'])$comments[]=$reply;}
             $this->json(['comments'=>$comments]);
         }
         $this->json(['error'=>'Not found.'],404);
@@ -192,10 +192,10 @@ final class Web {
             $edit=!empty($in['edit'])?(string)$in['edit']:null;
             if($edit&&!$s->get('posts',$edit))throw new \InvalidArgumentException('Post not found.');
             $attachments=$this->app->media->upload($files,(array)($in['alt']??[]));
+            if(!$edit&&!$attachments)throw new \InvalidArgumentException('Choose at least one photo. Replies also require a photo.');
             $replyActor=null;
             if(!empty($in['reply_to'])){
                 $target=$this->app->browser->actionable((string)$in['reply_to']);
-                if(!trim((string)($in['caption']??'')))throw new \InvalidArgumentException('Write a reply first.');
                 if($target['attributedTo']!==$this->app->actorId())$replyActor=$this->app->fed->actor($target['attributedTo']);
             }
             $post=$this->app->post($in,$attachments,$edit,$replyActor);

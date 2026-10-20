@@ -103,6 +103,7 @@ final class Discovery {
         $s=$this->app->store;$id=$post['id']??'';$actor=$post['attributedTo']??'';
         if(!is_string($id)||!is_string($actor)||!Http::validUrl($id)||!Http::validUrl($actor)||!in_array($post['type']??'',['Note','Article','Image'],true))return false;
         if(!in_array(Federation::PUBLIC,(array)($post['to']??[]),true))return false;
+        if(!empty($post['inReplyTo'])&&!Federation::hasImage($post))return false;
         $host=strtolower((string)parse_url($actor,PHP_URL_HOST));
         if($host===$this->ownHost()||$host!==strtolower((string)parse_url($id,PHP_URL_HOST))||$s->get('blocks',$host)||$s->get('blocks',$source)||$s->get('discovery_deleted',$id))return false;
         if($host!==strtolower($source)){
@@ -126,7 +127,7 @@ final class Discovery {
                 'name'=>is_string($a['name']??null)?mb_substr($a['name'],0,1000):''];
         }
         $post=['id'=>$id,'type'=>$post['type'],'attributedTo'=>$actor,'to'=>[Federation::PUBLIC],'cc'=>[],
-            'published'=>$post['published'],'url'=>is_string($post['url']??null)&&Http::validUrl($post['url'])?$post['url']:$id,
+            'published'=>$post['published'],'inReplyTo'=>$post['inReplyTo']??null,'url'=>is_string($post['url']??null)&&Http::validUrl($post['url'])?$post['url']:$id,
             'content'=>'<p>'.nl2br(htmlspecialchars($plain,ENT_QUOTES,'UTF-8')).'</p>',
             'source'=>['content'=>$plain,'mediaType'=>'text/plain'],'attachment'=>$attachments,
             'sensitive'=>!empty($post['sensitive']),'summary'=>is_string($post['summary']??null)?mb_substr($post['summary'],0,300):'',

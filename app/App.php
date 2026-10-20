@@ -87,11 +87,11 @@ final class App {
         if (mb_strlen($caption)>5000) throw new \InvalidArgumentException('Keep captions under 5,000 characters.');
         $old=$edit ? $this->store->get('posts',$edit) : null;
         if ($edit && !$old) throw new \InvalidArgumentException('That post was not found.');
-        if (!$old && !$attachments && empty($input['reply_to'])) throw new \InvalidArgumentException('Choose at least one photo.');
+        if (!Federation::hasImage(['attachment'=>$old['attachment']??$attachments])) throw new \InvalidArgumentException('Choose at least one photo. Replies also require a photo.');
         $id=$old['id'] ?? $this->url('/p/'.bin2hex(random_bytes(12)));
         $post=['@context'=>self::context(),'id'=>$id,'type'=>'Note',
             'attributedTo'=>$this->actorId(),'url'=>$id,'published'=>$old['published']??gmdate('Y-m-d\TH:i:s\Z'),
-            'to'=>[Federation::PUBLIC],'cc'=>[$this->url('/followers')],
+            'to'=>[Federation::PUBLIC],'cc'=>$old['cc']??[$this->url('/followers')],
             'content'=>'<p>'.nl2br(htmlspecialchars($caption,ENT_QUOTES,'UTF-8')).'</p>',
             'source'=>['content'=>$caption,'mediaType'=>'text/plain'],
             'sensitive'=>!empty($input['sensitive']),'summary'=>mb_substr(trim((string)($input['summary']??'')),0,300),
@@ -133,12 +133,13 @@ final class App {
         if ($actorId===$this->actorId()) $actor=$this->actor();
         $photos=[];
         $attachments=(array)($post['attachment']??[]);
+        if(isset($attachments['type']))$attachments=[$attachments];
         if (($post['type']??'')==='Image' && isset($post['url'])) $attachments[]=$post;
         foreach ($attachments as $a) {
             if (!is_array($a)) continue;
             $u=$a['url']??'';
             if (is_array($u)) $u=$u['href']??($u[0]['href']??'');
-            if (is_string($u) && Http::validUrl($u) && str_starts_with((string)($a['mediaType']??''),'image/'))
+            if (is_string($u) && Http::validUrl($u) && (str_starts_with(strtolower((string)($a['mediaType']??'')),'image/')||(($a['type']??'')==='Image'&&!isset($a['mediaType']))))
                 $photos[]=['url'=>$u,'alt'=>$a['name']??'','width'=>$a['width']??null,'height'=>$a['height']??null];
         }
         return ['id'=>$id,'url'=>is_string($post['url']??null)?$post['url']:$id,'kind'=>$post['type']??'Note','preview'=>Remote::href($post['_browser_preview']??''),

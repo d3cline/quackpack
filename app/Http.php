@@ -61,7 +61,7 @@ final class Http {
         $p=parse_url($url); $host=$p['host'];
         if ($this->app->store->get('blocks',strtolower($host))) throw new RemoteError(403,'You have blocked this server.');
         $headers=['Accept'=>'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams", application/json',
-            'User-Agent'=>'Quackpack/0.5.1 (+'.$this->app->url('/').')'];
+            'User-Agent'=>'Quackpack/0.5.3 (+'.$this->app->url('/').')'];
         if ($signed) $headers += $this->signatureHeaders($method,$url,$body);
         $headers=array_merge($headers,$extra);
         if ($body!==null&&!isset($headers['Content-Type'])) $headers['Content-Type']='application/activity+json';

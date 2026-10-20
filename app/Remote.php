@@ -76,6 +76,7 @@ final class Remote {
         if(!$id||!$author||($trustedAuthor!==$author&&parse_url($id,PHP_URL_HOST)!==parse_url($author,PHP_URL_HOST)))return null;
         if(!isset($post['to'])&&!isset($post['cc'])&&$audience)$post+=array_intersect_key($audience,array_flip(['to','cc']));
         if(!Federation::isPublic($post))return null;
+        if(!empty($post['inReplyTo'])&&!Federation::hasImage($post))return null;
         $post=array_intersect_key($post,array_flip(['@context','id','type','attributedTo','url','published','updated','name','content','summary','sensitive','attachment','inReplyTo','to','cc','source','image','icon','startTime','location','oneOf','anyOf','mediaType']));
         $post['id']=$id;$post['attributedTo']=$author;
         $post['url']=self::href($post['url']??'')?:$id;

@@ -121,6 +121,7 @@ try{
  check(!empty($d->status()['history'])&&!empty($d->status()['events']),'front-end telemetry includes recorded history and real event log');
  echo 'PASS: '.$checks." discovery and ranked-feed assertions\n";
 }finally{
- $it=new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir,FilesystemIterator::SKIP_DOTS),RecursiveIteratorIterator::CHILD_FIRST);
+ unset($app,$d,$s,$run);gc_collect_cycles();
+    $it=new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir,FilesystemIterator::SKIP_DOTS),RecursiveIteratorIterator::CHILD_FIRST);
  foreach($it as $file){if($file->isDir())rmdir($file->getPathname());else unlink($file->getPathname());}rmdir($dir);
 }

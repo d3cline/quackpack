@@ -35,7 +35,7 @@
     else if(!image&&p.preview&&safeURL(p.preview))media=`<a class="remote-preview" href="${esc(safeURL(p.url))}" target="_blank" rel="noopener noreferrer"><img src="${esc(safeURL(p.preview))}" alt="${esc(p.kind||'Public post')} preview" loading="lazy" referrerpolicy="no-referrer"><span>${p.kind==='Video'?'▶':p.kind==='Audio'?'♫':'↗'} ${esc(p.kind||'Post')} · Open original ↗</span></a>`;
     else if(image)media=`<button class="photo-button" data-index="${i}" aria-label="Open photo: ${esc(image.alt||p.name)}"><img src="${esc(safeURL(image.url))}" alt="${esc(image.alt)}" loading="lazy" decoding="async" referrerpolicy="no-referrer"></button>${p.photos.length>1?`<span class="photo-count">▧ ${p.photos.length}</span>`:''}`;
     else media=`<div class="text-card">${esc(p.content.slice(0,900))}</div>`;
-    return `<article class="post" data-index="${i}"><div class="photo-wrap">${media}</div><div class="post-meta"><button class="post-person" data-index="${i}" title="${esc(p.handle)}">${esc(p.name)}</button><time class="post-date" datetime="${esc(p.published)}">${esc(dateLabel(p.published))}</time></div><p class="post-caption">${esc(p.content)}</p><div class="post-actions">${state.owner?`${!p.local?`<button class="post-action like ${p.liked?'selected':''}" data-index="${i}" aria-label="${p.liked?'Unlike':'Like'}" aria-pressed="${!!p.liked}">${p.liked?'♥':'♡'}</button>`:''}<button class="post-action save ${p.saved?'selected':''}" data-index="${i}" aria-label="${p.saved?'Unsave':'Save'}" aria-pressed="${!!p.saved}">▱</button><button class="post-action reply" data-index="${i}" aria-label="Write a public reply">↩</button>${p.local?`<button class="post-action comments" data-index="${i}" aria-label="Read replies">◌</button>`:''}`:''}<a class="post-action" href="${esc(safeURL(p.url)||'#')}" target="_blank" rel="noopener noreferrer" aria-label="Open original post">↗</a>${state.owner&&p.local?`<button class="post-action post-menu edit" data-index="${i}" aria-label="Edit post">Edit</button><button class="post-action delete" data-index="${i}" aria-label="Delete post">×</button>`:''}</div></article>`;
+    return `<article class="post" data-index="${i}"><div class="photo-wrap">${media}</div><div class="post-meta"><button class="post-person" data-index="${i}" title="${esc(p.handle)}">${esc(p.name)}</button><time class="post-date" datetime="${esc(p.published)}">${esc(dateLabel(p.published))}</time></div><p class="post-caption">${esc(p.content)}</p><div class="post-actions">${state.owner?`${!p.local?`<button class="post-action like ${p.liked?'selected':''}" data-index="${i}" aria-label="${p.liked?'Unlike':'Like'}" aria-pressed="${!!p.liked}">${p.liked?'♥':'♡'}</button>`:''}<button class="post-action save ${p.saved?'selected':''}" data-index="${i}" aria-label="${p.saved?'Unsave':'Save'}" aria-pressed="${!!p.saved}">▱</button><button class="post-action reply" data-index="${i}" aria-label="Reply with a photo">↩</button>${p.local?`<button class="post-action comments" data-index="${i}" aria-label="Read replies">◌</button>`:''}`:''}<a class="post-action" href="${esc(safeURL(p.url)||'#')}" target="_blank" rel="noopener noreferrer" aria-label="Open original post">↗</a>${state.owner&&p.local?`<button class="post-action post-menu edit" data-index="${i}" aria-label="Edit post">Edit</button><button class="post-action delete" data-index="${i}" aria-label="Delete post">×</button>`:''}</div></article>`;
   }
   function render() {
     const feed=$('#feed');if(!feed)return;
@@ -117,8 +117,8 @@
   function openComposer(p=null,reply=null) {
     if(!state.owner){location.href=route('/login');return;}
     const form=$('#compose-form');form.reset();files=[];previews();form.elements.edit.value=p?.id||'';form.elements.reply_to.value=reply?.id||'';
-    $('#composer h2').textContent=p?'Edit this moment.':reply?'A little conversation.':'A new moment.';
-    $('#upload-zone').hidden=!!p||!!reply;$('#caption').value=p?.caption||'';
+    $('#composer h2').textContent=p?'Edit this moment.':reply?'Reply with a photo.':'A new moment.';
+    $('#upload-zone').hidden=!!p;$('#caption').value=p?.caption||'';
     form.elements.sensitive.checked=!!p?.sensitive;form.elements.summary.value=p?.summary||'';
     form.querySelector('[type=submit]').textContent=p?'Save changes ↗':reply?'Publish reply ↗':'Publish moment ↗';$('#composer').showModal();
     if(p||reply)$('#caption').focus();
@@ -132,7 +132,7 @@
   $$('.close-dialog').forEach(b=>b.onclick=()=>b.closest('dialog').close());
   $('#composer').addEventListener('close',()=>releasePreviews());
   $('#compose-form').addEventListener('submit',e=>{e.preventDefault();run(async()=>{
-    if(!e.target.elements.edit.value&&!e.target.elements.reply_to.value&&!files.length)throw new Error('Choose a photo first.');
+    if(!e.target.elements.edit.value&&!files.length)throw new Error('Choose a photo first.');
     const body=new FormData(e.target);body.delete('photos[]');const selected=[...files],status=$('#photo-status');
     try {
       const budget=selected.length?QuackpackPhotos.budget(state.uploads,selected.length):0;
@@ -155,7 +155,7 @@
     if(b.matches('.reply'))openComposer(null,p);
     if(b.matches('.save,.like'))run(async()=>{const action=b.matches('.save')?'save':'like';const r=await api('/api/'+action,{id:p.id});if(action==='save')p.saved=r.saved;else p.liked=r.liked;toast(action==='save'?(p.saved?'Saved for another day.':'Removed from saved.'):(p.liked?'A little appreciation, delivered.':'Like removed.'));if(state.view==='saved'&&!p.saved)posts=posts.filter(x=>x.id!==p.id);render();},b);
     if(b.matches('.delete'))run(async()=>{if(await confirmDelete(p)){await api('/api/delete',{id:p.id});posts=posts.filter(x=>x.id!==p.id);render();toast('Moment removed.');}},b);
-    if(b.matches('.comments'))run(async()=>{const article=b.closest('article'),old=$('.comments-panel',article);if(old){old.remove();return;}const r=await api('/api/comments?id='+encodeURIComponent(p.id));const panel=document.createElement('section');panel.className='comments-panel';panel.innerHTML=r.comments.length?r.comments.map(c=>`<div class="comment"><strong>${esc(c.name)}</strong><p>${esc(c.content)}</p></div>`).join(''):'<p class="muted">No public replies yet.</p>';article.append(panel);},b);
+    if(b.matches('.comments'))run(async()=>{const article=b.closest('article'),old=$('.comments-panel',article);if(old){old.remove();return;}const r=await api('/api/comments?id='+encodeURIComponent(p.id));const panel=document.createElement('section');panel.className='comments-panel';panel.innerHTML=r.comments.length?r.comments.map(c=>`<div class="comment"><strong>${esc(c.name)}</strong>${c.photos.map(photo=>`<img class="comment-photo" src="${esc(safeURL(photo.url))}" alt="${esc(photo.alt||'')}" loading="lazy">`).join('')}<p>${esc(c.content)}</p></div>`).join(''):'<p class="muted">No public replies yet.</p>';article.append(panel);},b);
   });
   $$('.handle-copy').forEach(b=>b.onclick=()=>run(async()=>{await navigator.clipboard.writeText(state.handle);toast('Your federation address is copied.');},b));
   function openPlace(server={}) {const f=$('#place-form');f.reset();f.elements.domain.value=server.domain||'';$('#remove-place').hidden=!state.servers.some(s=>s.domain===server.domain);$('#place-dialog').showModal();}

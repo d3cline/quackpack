@@ -93,5 +93,6 @@ try{
  echo 'PASS: '.$checks.' cross-platform browser assertions on '.$s->driver."\n";
 }finally{
  if(isset($s)&&$s->driver==='mysql')foreach(['records','jobs','discovery_queue'] as $table)$s->query('DELETE FROM '.$table);
- unset($app,$s);$it=new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir,FilesystemIterator::SKIP_DOTS),RecursiveIteratorIterator::CHILD_FIRST);foreach($it as $file)$file->isDir()?rmdir($file->getPathname()):unlink($file->getPathname());rmdir($dir);
+ unset($app,$s);gc_collect_cycles();
+    $it=new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir,FilesystemIterator::SKIP_DOTS),RecursiveIteratorIterator::CHILD_FIRST);foreach($it as $file)$file->isDir()?rmdir($file->getPathname()):unlink($file->getPathname());rmdir($dir);
 }

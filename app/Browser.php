@@ -46,6 +46,7 @@ final class Browser {
             'attributedTo'=>$actorId,'content'=>$status['content']??'','published'=>$status['created_at']??'',
             'attachment'=>$media,'sensitive'=>$status['sensitive']??false,'summary'=>$status['spoiler_text']??'',
             'to'=>[Federation::PUBLIC],'cc'=>[],'inReplyTo'=>null,'_via'=>'mastodon'];
+        if(!empty($status['in_reply_to_id'])&&!$media)return null;
         return ['post'=>$post,'profile'=>$actor];
     }
     public function mastodon(array $status,?string $source=null): ?array {

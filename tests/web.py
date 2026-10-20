@@ -122,8 +122,18 @@ with tempfile.TemporaryDirectory(prefix='pup-web-') as directory:
     check(request('/api/server','POST',post={'domain':'bad','token':'secret'},csrf='test-csrf-token',**owner)[0]==400, 'malformed server rejected')
     status,_=request('/api/server','POST',post={'domain':'remote.example','token':'never-show-this-token'},csrf='test-csrf-token',**owner)
     check(status==200 and 'never-show-this-token' not in request('/explore',**owner)[1], 'server token never reaches page state')
+    public_html=request()[1]
+    public_state=json.loads(re.search(r'id="pup-state">(.*?)</script>',public_html,re.S).group(1))
+    check(public_state['owner'] is False and public_state['servers']==[] and 'remote.example' not in public_html, 'public journal omits saved browsing destinations')
+    check('never-show-this-token' not in public_html, 'public journal omits saved API tokens')
+    owner_html=request('/explore',**owner)[1]
+    owner_state=json.loads(re.search(r'id="pup-state">(.*?)</script>',owner_html,re.S).group(1))
+    check(owner_state['owner'] and any(s['domain']=='remote.example' for s in owner_state['servers']), 'owner retains saved browsing destinations')
+    check('never-show-this-token' not in owner_html, 'owner page also omits saved API tokens')
     check(request('/var/config.php')[0]==404 and request('/app/bootstrap.php')[0]==404, 'front controller cannot serve private files')
     check(request('/api/post','POST',post={'caption':'no photos'},csrf='test-csrf-token',**owner)[0]==400, 'publish validates required media')
+    status,body=request('/api/post','POST',post={'caption':'Text reply','reply_to':'https://remote.example/p/123'},**csrf)
+    check(status==400 and 'photo' in json.loads(body)['error'], 'reply API requires a photo before resolving a remote target')
     # A password change invalidates the existing owner session.
     env['PUP_PASSWORD']='different-test-password-123'
     check(php(['bin/pup','password']).returncode==0, 'headless password reset succeeds')

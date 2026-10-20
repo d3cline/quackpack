@@ -1,44 +1,62 @@
-Quackpack 0.5.1 — security and phone uploads
+Quackpack 0.5.3 — missing-runtime recovery
 2026-10-20
 
-release-run.log: PASS: 65 assertions on sqlite
-release-discovery.log: PASS: 51 discovery and ranked-feed assertions
-release-federation.log: PASS: 25 federation/browsing assertions on sqlite
-release-browsing.log: PASS: 33 cross-platform browser assertions on sqlite
-release-security.log: PASS: 43 security regression assertions on sqlite
-browser-mysql-core.log: PASS: 65 assertions on mysql
-browser-mysql-discovery.log: PASS: 51 discovery and ranked-feed assertions
-browser-mysql-federation.log: PASS: 25 federation/browsing assertions on mysql
-browser-mysql-platforms.log: PASS: 33 cross-platform browser assertions on mysql
-release-mysql-security.log: PASS: 43 security regression assertions on mysql
-release-web.log: PASS: 61 CLI and web contract assertions
-release-nginx.log: PASS: 75 plain Nginx/FastCGI hosting assertions
-release-install.log: PASS: 31 installer and PHP-selection regression assertions
-release-ui.log: PASS: 51 frontend DOM interaction assertions
-release-theme.log: PASS: 24 theme preference and contrast assertions
-release-photos.log: PASS: 18 photo preparation assertions (browser decoding simulated)
+updater: PASS: 21 runtime-recovery assertions
+federation-053: PASS: 47 federation/browsing assertions on sqlite
+security-053: PASS: 39 security regression assertions on sqlite
+web-053: PASS: 66 CLI and web contract assertions
+install-053-final: PASS: 31 installer and PHP-selection regression assertions
 
-Total: 694 behavior assertions.
-Syntax: 24 PHP entrypoints, 6 JavaScript files, 3 Python files, 2 shell scripts.
+Recovery tests reproduce a nonexistent HOME runtime and a deleted actual
+private runtime. The updater restores from the complete release using the
+installed index.php configuration locator, including a custom private path
+containing spaces. Configuration/key/password bytes, photos, posts and actor
+IDs remain unchanged. Repeated recovery, ambiguous configurations, missing
+configuration/database and incorrect document roots are exercised.
 
-Local PHP: 8.3.6. Both SQLite and MariaDB tested. PHP 8.5 was not available
-in this environment. Plain Nginx/FastCGI fixtures require no application
-rewrites, .htaccess, or private-file deny rules. A running 0.5.0 installation
-was upgraded while preserving its exact configuration, keys, actor/post URLs
-and managed links. Source archives include dotfiles; the installer also
-regenerates missing PHP settings.
+All 26 PHP files and the JavaScript/shell files pass syntax checks.
+Tests use PHP 8.5.10 via PHP.wasm and SQLite. No live Opalstack deployment,
+physical Safari acceptance, native Nginx/FastCGI or MariaDB run is claimed.
 
-Security regressions cover invalid-signature cache writes, first-contact key
-fetch budgets and lock contention, availability of cached legitimate keys,
-queue backpressure, same-host cross-actor Create/Update and reaction ownership,
-actor-scoped replay receipts, canonical foreign-origin post resolution,
-foreign profile-cache poisoning, private saved-place metadata, cache quotas,
-retention, and idempotent disposal of legacy display caches.
+Previous 0.5.2 baseline (unchanged federation/media behavior):
 
-Photo preparation tests simulate native decoding. The DOM suite verifies
-that selected HEIC originals are prepared and submitted as JPEGs within PHP
-limits. A physical iPhone/Safari acceptance test was not performed. HEIC uses
-the browser decoder; unsupported browsers receive explicit export guidance.
+Quackpack 0.5.2 — federation and image replies
+2026-10-20
 
-All federation and platform interactions in these tests use controlled
-fixtures. No production deployment or live peer delivery is claimed.
+run: PASS: 65 assertions on sqlite
+discovery: PASS: 51 discovery and ranked-feed assertions
+federation: PASS: 47 federation/browsing assertions on sqlite
+browsing: PASS: 33 cross-platform browser assertions on sqlite
+security: PASS: 39 security regression assertions on sqlite
+web: PASS: 66 CLI and web contract assertions
+install: PASS: 31 installer and PHP-selection regression assertions
+ui: PASS: 57 frontend DOM interaction assertions
+theme: PASS: 24 theme preference and contrast assertions
+photos: PASS: 18 photo preparation assertions (browser decoding simulated)
+
+Total: 431 behavior assertions.
+
+Runtime: PHP 8.5.10 via PHP.wasm, SQLite, Node 24.19.0, Python 3.12.
+PHP, JavaScript and shell syntax checks pass.
+
+Security execution used PUP_TEST_SKIP_SUBPROCESS=1 for the 39 in-process
+assertions. PHP.wasm nested request subprocesses could not return output.
+The four public/owner saved-destination and token assertions were executed
+through tests/web.py instead (included in its 66 assertions). The full
+43-assertion tests/security.php remains available for native PHP.
+
+The installer suite upgrades the exact supplied 0.5.1 archive and confirms
+that configuration bytes, signing keys, actor/post URLs, links and existing
+photos remain intact. New federation tests also migrate an existing queue
+without its priority column and confirm repeatability and cache cleanup.
+
+Protocol fixtures verify signed Follow/Accept/Create/Update/Delete,
+automatic pre-follow photo backfill, priority over post backlog, inbound
+capacity independent of 2,000 outbound jobs, key-array verification, exact
+query request-target binding, ID-only Undo ownership, upgrade recovery,
+photo-only replies and removal of replies whose images are removed.
+
+Phone upload tests simulate browser decoding; no physical Safari/iPhone
+acceptance was performed. Native Opalstack PHP85, MySQL/MariaDB and Nginx/
+FastCGI were not rerun in this build. All federation requests use controlled
+fixtures. This archive has not been deployed to a live server.

@@ -4,7 +4,23 @@
 
 Quackpack is a PHP photo journal and personal Fediverse browser. One installation is one person and one ActivityPub actor. There is no registration, user administration, role system, or separate admin application. Sign in as the owner to publish, browse, follow and save. Visitors see your public journal.
 
-**Version 0.5.1.** Local tests are not a substitute for interoperability testing on public HTTPS domains. See [docs/RELEASE.md](docs/RELEASE.md) for the exact validation boundary.
+**Version 0.5.3.** Local tests are not a substitute for interoperability testing on public HTTPS domains. See [docs/RELEASE.md](docs/RELEASE.md) for the exact validation boundary.
+
+## 0.5.3: federation and image replies
+
+Follow/Accept handshakes run before ordinary post traffic. Outbound delivery backlogs no longer consume the incoming activity allowance. A newly accepted follower receives up to 24 recent photos automatically. Repair retries existing follower acknowledgements and pending outbound follows, then resends recent posts once, retaining actor IDs, keys and original Create IDs. Text-only replies are rejected in the composer, API, inbox and remote browsing/discovery; image replies may include a caption. Reply panels show images and alt text.
+
+Extract this release privately, then run its updater against the existing app directory:
+
+```bash
+unzip quackpack-v0.5.3.zip -d "$HOME/quackpack-update-0.5.3"
+php85 "$HOME/quackpack-update-0.5.3/quackpack/update.php" --docroot="$HOME/apps/quackpack"
+php85 "$HOME/apps/quackpack/quackpack.php" work --seconds=45 --limit=200
+```
+
+The updater reads the existing app's configuration locator and restores a missing runtime from this complete release. It uses the configured private directory, including custom paths. If configuration is stored elsewhere, use `--config=/absolute/path/to/existing/config.php`. Existing configuration bytes, keys, database and photos are retained. A missing configuration or database produces a clear error; a new account is never silently created.
+
+The installed `quackpack.php` CLI sits in the app directory and uses its actual configuration/runtime paths. Run `php85 quackpack.php help` there; no hand-written bootstrap path is needed. The updater prints the matching minute cron. It does not edit your crontab. Keep an existing working cron or replace a stale path with the printed command.
 
 ## Two jobs, done deliberately
 
@@ -30,7 +46,7 @@ ActivityPub defines actor outboxes, not a universal all-server public timeline o
 
 Protocol references: [ActivityPub outboxes](https://www.w3.org/TR/activitypub/#outbox), [Mastodon public timelines](https://docs.joinmastodon.org/methods/timelines/#public), [peer discovery](https://docs.joinmastodon.org/methods/instance/#peers), [profile directories](https://docs.joinmastodon.org/methods/directory/), and [published domain restrictions](https://docs.joinmastodon.org/methods/instance/#domain_blocks).
 
-## Browse across the Fediverse — 0.5.1
+## Browse across the Fediverse — 0.5.3
 
 Open a server domain, `@name@server`, profile, community, channel, public collection or post URL in **Open a place**. Quackpack detects server software through NodeInfo and opens public feeds or indexes. Click a person, community or channel card to browse their posts. Public API profile reads work independently of ActivityPub follow/signature delivery.
 
@@ -61,7 +77,7 @@ The homepage now serves the stable actor for ActivityPub requests and advertises
 In **Your space**, see follower counts, the last accepted delivery, and failed jobs. **Check public endpoints** checks WebFinger, actor, homepage discovery, outbox and the latest post from your host. The equivalent command is:
 
 ```bash
-php85 "$HOME/quackpack/runtime/bin/quackpack" doctor --federation
+php85 "$HOME/apps/quackpack/quackpack.php" doctor --federation
 ```
 
 After your first follow, **Send recent posts to followers** queues up to 24 existing posts and a profile refresh. Original Create IDs are retained so peers can deduplicate. **Retry failed deliveries** retries failed jobs. Both use the existing minute worker.
@@ -71,10 +87,10 @@ After your first follow, **Send recent posts to followers** queues up to 24 exis
 Extract the new release into a private staging directory, then run its CLI. For the standard layout, for example:
 
 ```bash
-unzip quackpack-v0.5.1.zip -d "$HOME/quackpack-update-0.5.1"
-php85 "$HOME/quackpack-update-0.5.1/quackpack/bin/quackpack" repair
-php85 "$HOME/quackpack/runtime/bin/quackpack" discover --action=start
-php85 "$HOME/quackpack/runtime/bin/quackpack" doctor
+unzip quackpack-v0.5.3.zip -d "$HOME/quackpack-update-0.5.3"
+php85 "$HOME/quackpack-update-0.5.3/quackpack/update.php" --docroot="$HOME/apps/quackpack"
+php85 "$HOME/apps/quackpack/quackpack.php" discover --action=start
+php85 "$HOME/apps/quackpack/quackpack.php" doctor
 ```
 
 Repair stages the new runtime, applies the idempotent schema update, publishes public assets/entrypoints and retains the previous runtime privately. Existing configuration, password, domain, username, keys, posts, links and media are preserved. When staging outside the document root, existing public `.user.ini` settings are preserved. The existing minute cron keeps working and picks up discovery on its next run. Use the actual supported PHP CLI matching your app's selected web PHP. If your config is in a custom location, supply that existing path through `PUP_CONFIG`.
@@ -82,11 +98,11 @@ Repair stages the new runtime, applies the idempotent schema update, publishes p
 Useful crawler commands:
 
 ```bash
-php85 "$HOME/quackpack/runtime/bin/quackpack" discover --action=status
-php85 "$HOME/quackpack/runtime/bin/quackpack" discover --action=pause
-php85 "$HOME/quackpack/runtime/bin/quackpack" discover --action=start
-php85 "$HOME/quackpack/runtime/bin/quackpack" discover --action=seed --value=server.example
-php85 "$HOME/quackpack/runtime/bin/quackpack" discover --action=watch --value=https://server.example/users/someone
+php85 "$HOME/apps/quackpack/quackpack.php" discover --action=status
+php85 "$HOME/apps/quackpack/quackpack.php" discover --action=pause
+php85 "$HOME/apps/quackpack/quackpack.php" discover --action=start
+php85 "$HOME/apps/quackpack/quackpack.php" discover --action=seed --value=server.example
+php85 "$HOME/apps/quackpack/quackpack.php" discover --action=watch --value=https://server.example/users/someone
 ```
 
 ## Your links, then your feed
@@ -136,8 +152,8 @@ If installation stopped with `copy(.../.user.ini): No such file or directory`, y
 ```bash
 cd "$HOME/apps/quackpack"
 php85 bin/quackpack repair
-php85 "$HOME/quackpack/runtime/bin/quackpack" work --seconds=1
-php85 "$HOME/quackpack/runtime/bin/quackpack" doctor
+php85 "$HOME/apps/quackpack/quackpack.php" work --seconds=1
+php85 "$HOME/apps/quackpack/quackpack.php" doctor
 ```
 
 Repair does not require your password. It preserves the existing configuration byte-for-byte, including the owner password hash, domain, username and federation keys. It preserves database contents and media. The new runtime is staged under the private directory, and an existing incomplete runtime is retained as `runtime-backup-TIMESTAMP-RANDOM`. The repair result includes the exact cron command for the PHP binary you used.
@@ -177,14 +193,14 @@ Use the PHP 8.2+ CLI binary matching your app version (`php82`, `php83`, `php84`
 After installation, use the private CLI:
 
 ```bash
-php85 "$HOME/quackpack/runtime/bin/quackpack" work --seconds=1
-php85 "$HOME/quackpack/runtime/bin/quackpack" doctor
+php85 "$HOME/apps/quackpack/quackpack.php" work --seconds=1
+php85 "$HOME/apps/quackpack/quackpack.php" doctor
 ```
 
 Add the cron line returned by installation. For example (use your actual PHP path):
 
 ```cron
-* * * * * /usr/bin/php85 /home/USER/quackpack/runtime/bin/quackpack work --seconds=45 --limit=50 >> /home/USER/logs/quackpack-worker.log 2>&1
+* * * * * /usr/bin/php85 /home/USER/apps/quackpack/quackpack.php work --seconds=45 --limit=50 >> /home/USER/logs/quackpack-worker.log 2>&1
 ```
 
 Open the domain and click **Owner sign in**, or visit `/index.php?route=%2Flogin`. Cron processes deliveries when the journal is closed.
@@ -221,7 +237,7 @@ PDO credentials are stored in private configuration. The schema uses InnoDB and 
 2. Extract the release contents into `/home/USER/apps/quackpack/`, without an extra nested archive folder.
 3. Set the installation variables and run `bash deploy/opalstack.sh`, or run the direct PHP install command above. Private files move to `$HOME/quackpack` automatically.
 4. Route the HTTPS domain at `/` to this application and add the cron command returned by installation.
-5. Run `php85 "$HOME/quackpack/runtime/bin/quackpack" doctor` and open your domain.
+5. Run `php85 "$HOME/apps/quackpack/quackpack.php" doctor` and open your domain.
 
 No shared Nginx changes or custom server are involved. Opalstack documents that custom configuration is unavailable on managed Nginx/PHP-FPM and recommends keeping private data outside the app directory: [managed Nginx support guidance](https://community.opalstack.com/d/1664-deny-file-web-access-on-nginx). PHP settings belong in `.user.ini`: [Opalstack PHP documentation](https://docs.opalstack.com/topic-guides/php/).
 
@@ -257,10 +273,10 @@ Server blocks are personal boundaries, not a community moderation product. Block
 ## Operate, update and back up
 
 ```bash
-php85 "$HOME/quackpack/runtime/bin/quackpack" doctor
-php85 "$HOME/quackpack/runtime/bin/quackpack" work --limit=50 --seconds=45
-php85 "$HOME/quackpack/runtime/bin/quackpack" retry
-php85 "$HOME/quackpack/runtime/bin/quackpack" export > quackpack-export.json
+php85 "$HOME/apps/quackpack/quackpack.php" doctor
+php85 "$HOME/apps/quackpack/quackpack.php" work --limit=50 --seconds=45
+php85 "$HOME/apps/quackpack/quackpack.php" retry
+php85 "$HOME/apps/quackpack/quackpack.php" export > quackpack-export.json
 ```
 
 `export` is a content/relationship export, not a complete disaster-recovery backup and does not include keys or image bytes. Back up **all private configuration, the media directory, and the database**. On SQLite, stop web writes and the cron worker while copying the DB, or use SQLite's backup command (not a live copy of only the main WAL database file). For MySQL use `mysqldump --single-transaction` plus a media/config backup. Store backups privately; they contain your identity and per-server tokens.
@@ -272,7 +288,7 @@ Password reset is headless:
 ```bash
 read -r -s -p 'New password: ' PUP_PASSWORD
 export PUP_PASSWORD
-php85 "$HOME/quackpack/runtime/bin/quackpack" password
+php85 "$HOME/apps/quackpack/quackpack.php" password
 unset PUP_PASSWORD
 ```
 

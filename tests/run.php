@@ -86,6 +86,7 @@ try{
 } finally {
     if(isset($s)&&$s->driver==='mysql'){$s->query('DELETE FROM records');$s->query('DELETE FROM jobs');}
     unset($app,$remote,$s);
+    gc_collect_cycles();
     $it=new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir,FilesystemIterator::SKIP_DOTS),RecursiveIteratorIterator::CHILD_FIRST);
     foreach($it as $file){$file->isDir()?rmdir($file->getPathname()):unlink($file->getPathname());}rmdir($dir);
 }

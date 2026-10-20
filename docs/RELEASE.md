@@ -1,3 +1,13 @@
+# Release 0.5.3 — recover a missing runtime
+
+Adds a CLI-only update.php that reads the installed front controller/configuration locator and restores the full private runtime from the release. Existing custom private paths are used rather than assuming HOME/quackpack/runtime. It requires the existing configuration and database and never generates a replacement identity. The installer also creates quackpack.php in the actual document root, providing a stable CLI without requiring a manually constructed bootstrap path. Existing 0.5.2 federation and image-reply fixes are included.
+
+# Release 0.5.2 — federation delivery and image-only replies
+
+Prioritizes Follow/Accept, separates inbound backpressure from outbound backlog, backfills recent photos on a new follow, and recovers existing follow handshakes/recent posts during repair. Signature verification selects the matching key from actor key arrays; ID-only Undo is bound to the signed actor and exact stored Follow. Pending outbound follows can be retried without changing their IDs.
+
+Replies require a photo in the composer and API. Incoming and browsed text-only replies are filtered, updates that remove the photo remove cached replies, and legacy cached text replies are cleared on upgrade. Photo replies allow optional captions and display their images and alt text. Phone upload preparation and the Opalstack PHP85/HOME deployment remain intact. See VALIDATION.txt for the tests run in this build.
+
 # Release 0.5.1 — uploads and security fixes
 
 Repairs phone-photo preparation for posts and avatars, bounds inbox key fetching and storage, enforces existing-object and reaction ownership, isolates replay receipts by actor, verifies foreign-origin discovery and API posts, and keeps saved browsing destinations private. Upgrade through the existing repair command; owner data and identity are preserved while disposable display caches are rebuilt. See VALIDATION.txt for tested scope.

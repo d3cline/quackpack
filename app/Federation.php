@@ -61,9 +61,13 @@ final class Federation {
         $this->app->store->put('activities',$activity['id'],$activity);
         return $activity;
     }
+    public static function priority(array $payload): int {
+        if(in_array($payload['activity']['type']??'',['Follow','Accept','Reject','Undo'],true))return 0;
+        return match($payload['kind']??''){'deliver'=>5,'fanout'=>10,default=>20};
+    }
     public function enqueue(array $payload,int $due=0): void {
-        $now=time();$this->app->store->query('INSERT INTO jobs(id,payload,attempts,due,state,error,created,updated) VALUES(?,?,0,?,\'pending\',\'\',?,?)',
-            [bin2hex(random_bytes(16)),App::json($payload),$due?:$now,$now,$now]);
+        $now=time();$this->app->store->query('INSERT INTO jobs(id,payload,attempts,due,state,error,created,updated,priority) VALUES(?,?,0,?,\'pending\',\'\',?,?,?)',
+            [bin2hex(random_bytes(16)),App::json($payload),$due?:$now,$now,$now,self::priority($payload)]);
     }
     public function deliver(array $activity,array $actor): void {
         // Per-actor inboxes keep delivery independent from untrusted sharedInbox hints.
@@ -87,6 +91,20 @@ final class Federation {
             }
             $this->broadcast($this->activity('Update',$this->app->actor()));
             return $count;
+        });
+    }
+    public function recover(): void {
+        $s=$this->app->store;
+        $s->tx(function()use($s){
+            if($s->get('meta','federation_recovery_0_5_2'))return;
+            foreach($s->each('followers') as $f){
+                if(empty($f['follow_id']))continue;
+                $follow=['id'=>$f['follow_id'],'type'=>'Follow','actor'=>$f['id'],'object'=>$this->app->actorId()];
+                $this->deliver($this->activity('Accept',$follow,$f['id']),$f['actor']);
+            }
+            foreach($s->each('follows') as $f)if(($f['state']??'')==='pending')$this->deliver($f['activity'],$f['actor']);
+            if($s->count('followers'))$this->resend();
+            $s->put('meta','federation_recovery_0_5_2',['at'=>time()]);
         });
     }
     public function checkPublic(): array {
@@ -118,7 +136,10 @@ final class Federation {
         if ($a['id']===$this->app->actorId()) throw new \InvalidArgumentException('That is your own profile.');
         return $this->app->store->tx(function()use($a){
             $existing=$this->app->store->get('follows',$a['id']);
-            if ($existing) return $existing;
+            if ($existing&&($existing['state']??'')!=='rejected') {
+                if(($existing['state']??'')==='pending'){$existing['actor']=$a;$this->app->store->put('follows',$a['id'],$existing);$this->deliver($existing['activity'],$a);}
+                return $existing;
+            }
             $activity=$this->activity('Follow',$a['id'],$a['id']);
             $follow=['id'=>$a['id'],'actor'=>$a,'activity'=>$activity,'state'=>'pending'];
             $this->app->store->put('follows',$a['id'],$follow);$this->deliver($activity,$a);return $follow;
@@ -178,8 +199,8 @@ final class Federation {
         $cached=$this->app->store->get('actors',$activity['actor']);
         $actor=$cached&&($cached['_fetched']??0)>time()-21600?$cached:$fetch();
         $verify=function(array $actor)use($s,$lines):bool{
-            $key=$actor['publicKey']??[];
-            if (isset($key[0])) $key=$key[0];
+            $keys=$actor['publicKey']??[];$key=[];
+            foreach(isset($keys[0])?$keys:[$keys] as $candidate)if(is_array($candidate)&&($candidate['id']??'')===$s['keyId']){$key=$candidate;break;}
             if(!is_array($key)||!is_string($key['publicKeyPem']??null)||strlen($key['publicKeyPem'])>16384)return false;
             if (($key['id']??'')!==$s['keyId']||($key['owner']??'')!==$actor['id']) return false;
             $bytes=base64_decode($s['signature'],true);
@@ -194,7 +215,7 @@ final class Federation {
         } finally {if($lock!==null){flock($lock,LOCK_UN);fclose($lock);}}
     }
     public function inbox(array $headers,string $body,string $target): void {
-        if((int)$this->app->store->query("SELECT COUNT(*) FROM jobs WHERE state='pending'")->fetchColumn()>=2000)throw new RemoteError(429,'The inbox queue is full. Retry later.',60);
+        if((int)$this->app->store->query("SELECT COUNT(*) FROM jobs WHERE state='pending' AND payload LIKE ?",['%"kind":"receive"%'])->fetchColumn()>=2000)throw new RemoteError(429,'The inbox queue is full. Retry later.',60);
         $activity=$this->verify($headers,$body,$target);
         $this->app->store->tx(function()use($activity){
             if (!$this->app->store->add('receipts',$activity['actor']."\n".$activity['id'],['id'=>$activity['id'],'actor'=>$activity['actor']])) return;
@@ -204,6 +225,18 @@ final class Federation {
     public static function isPublic(array $post): bool {
         return in_array(self::PUBLIC,array_merge((array)($post['to']??[]),(array)($post['cc']??[])),true);
     }
+    public static function hasImage(array $post): bool {
+        $attachments=$post['attachment']??[];
+        if(!is_array($attachments))return false;
+        if(isset($attachments['type']))$attachments=[$attachments];
+        if(($post['type']??'')==='Image')$attachments[]=$post;
+        foreach($attachments as $attachment){
+            if(!is_array($attachment))continue;
+            $url=Remote::href($attachment['url']??'');
+            if(Http::validUrl($url)&&(str_starts_with(strtolower((string)($attachment['mediaType']??'')),'image/')||(($attachment['type']??'')==='Image'&&!isset($attachment['mediaType']))))return true;
+        }
+        return false;
+    }
     public function receive(array $a): void {
         $s=$this->app->store;$who=$a['actor'];$type=$a['type']??'';$obj=$a['object']??null;
         $id=is_string($obj)?$obj:(is_array($obj)?($obj['id']??''):'');
@@ -212,8 +245,16 @@ final class Federation {
         if($type==='Follow' && $id===$this->app->actorId()) {
             $s->tx(function()use($s,$who,$actor,$a){
                 if(!$s->get('followers',$who)&&$s->count('followers')>=10000)return;
+                $existing=$s->get('followers',$who);
                 $s->put('followers',$who,['id'=>$who,'actor'=>$actor,'follow_id'=>$a['id']]);
                 $this->deliver($this->activity('Accept',$a,$who),$actor);
+                if(!$existing){
+                    foreach(array_reverse($s->page('posts',0,24)) as $post){
+                        if(!self::hasImage($post))continue;
+                        $create=$s->get('creates',$post['id']);if(!$create)continue;
+                        $create['object']=$post;$this->deliver($create,$actor);
+                    }
+                }
             });
         } elseif(in_array($type,['Accept','Reject'],true)) {
             $f=$s->get('follows',$who);
@@ -234,6 +275,7 @@ final class Federation {
                 // A public post becoming private must disappear from all local caches.
                 $this->forget($id,$who);return;
             }
+            if(!empty($obj['inReplyTo'])&&!self::hasImage($obj)){$this->forget($id,$who);return;}
             $s->remove('discovery_deleted',$id);
             if($discovered=$s->get('discovery_posts',$id)){
                 if(!in_array(self::PUBLIC,(array)($obj['to']??[]),true))$s->remove('discovery_posts',$id);
@@ -248,6 +290,9 @@ final class Federation {
         } elseif($type==='Like' && $s->get('posts',$id)) {
             $existing=$s->get('reactions',$a['id']);if($existing&&($existing['actor']??'')!==$who)return;
             if($s->get('reactions',$a['id'])||$s->count('reactions')<20000)$s->put('reactions',$a['id'],['id'=>$a['id'],'actor'=>$who,'post'=>$id,'type'=>'Like']);
+        } elseif($type==='Undo' && is_string($obj)) {
+            $f=$s->get('followers',$who);if(($f['follow_id']??null)===$obj)$s->remove('followers',$who);
+            $r=$s->get('reactions',$obj);if(($r['actor']??null)===$who)$s->remove('reactions',$obj);
         } elseif($type==='Undo' && is_array($obj) && ($obj['actor']??null)===$who) {
             if(($obj['type']??'')==='Follow') {
                 $f=$s->get('followers',$who);
@@ -274,7 +319,7 @@ final class Federation {
         try {
             $s=$this->app->store;
             while($processed<$limit && time()-$start<$seconds) {
-                $job=$s->query("SELECT * FROM jobs WHERE state='pending' AND due<=? ORDER BY due,created LIMIT 1",[time()])->fetch();
+                $job=$s->query("SELECT * FROM jobs WHERE state='pending' AND due<=? ORDER BY priority,due,created,id LIMIT 1",[time()])->fetch();
                 if(!$job)break;
                 try {
                     $p=json_decode($job['payload'],true,64,JSON_THROW_ON_ERROR);

@@ -66,7 +66,7 @@ try {
             'cron'=>'* * * * * '.escapeshellarg(PHP_BINARY).' '.escapeshellarg($runtime.'/bin/quackpack').' work --seconds=45 --limit=50'])."\n";exit;
     }
     if($cmd==='help'){
-        echo "Quackpack 0.5.1 — one person, one domain, a wider world.\n\n";
+        echo "Quackpack 0.5.3 — one person, one domain, a wider world.\n\n";
         echo "install --url=https://photos.example --username=name --name='Your Name' [--data-dir=/home/USER/quackpack] [--docroot=/absolute/app/path]\n";
         echo "  Private files default to \$HOME/quackpack. No rewrites or Nginx configuration required.\n";
         echo "  Required: PUP_PASSWORD (14+ characters). Optional: PUP_DSN, PUP_DB_USER, PUP_DB_PASSWORD.\n";
@@ -90,7 +90,7 @@ try {
         if(!$source||!is_file($source.'/app/Installer.php')||!is_file($source.'/bin/pup')||!is_dir($source.'/assets'))throw new RuntimeException('Use --source=/absolute/path/to/the/extracted/release.');
         if(!$root||!is_writable($root)||!$data||pup_path_within($data,$root)||pup_path_within($root,$data))throw new RuntimeException('Existing private storage and document root must be separate writable directories.');
         if(is_dir($root.'/.git'))throw new RuntimeException('The document root must not contain a Git checkout.');
-        umask(0077);$app->store->migrate();$runtime=Pup\Installer::deploy($source,$root,$data,$configFile,true);
+        umask(0077);$app->store->migrate();$app->fed->recover();$runtime=Pup\Installer::deploy($source,$root,$data,$configFile,true);
         echo Pup\App::json(['repaired'=>true,'url'=>$c['base_url'],'actor'=>$app->actorId(),'document_root'=>$root,'private_directory'=>$data,
             'runtime'=>$runtime,'cli'=>$runtime.'/bin/quackpack','config'=>$configFile,'php'=>PHP_VERSION,'php_binary'=>PHP_BINARY,
             'cron'=>'* * * * * '.escapeshellarg(PHP_BINARY).' '.escapeshellarg($runtime.'/bin/quackpack').' work --seconds=45 --limit=50'])."\n";

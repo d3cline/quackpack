@@ -32,7 +32,7 @@ final class Store {
         $this->db->exec('CREATE TABLE IF NOT EXISTS jobs (
             id CHAR(32) PRIMARY KEY, payload TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0,
             due BIGINT NOT NULL, state VARCHAR(16) NOT NULL, error TEXT NOT NULL,
-            created BIGINT NOT NULL, updated BIGINT NOT NULL)' . $suffix);
+            created BIGINT NOT NULL, updated BIGINT NOT NULL, priority INTEGER NOT NULL DEFAULT 10)' . $suffix);
         $this->db->exec('CREATE TABLE IF NOT EXISTS discovery_queue (
             id CHAR(64) PRIMARY KEY, kind VARCHAR(24) NOT NULL, ref TEXT NOT NULL,
             domain VARCHAR(253) NOT NULL, due BIGINT NOT NULL, updated BIGINT NOT NULL)' . $suffix);
@@ -45,6 +45,19 @@ final class Store {
         try { $this->db->exec('CREATE INDEX jobs_due ON jobs(state,due)'); } catch (\PDOException $e) {
             if (!str_contains($e->getMessage(), 'already exists') && !str_contains($e->getMessage(), 'Duplicate key name')) throw $e;
         }
+        // Existing queues keep every payload and retry state during an upgrade.
+        $columns=$this->driver==='mysql'?$this->query('SHOW COLUMNS FROM jobs')->fetchAll():$this->query('PRAGMA table_info(jobs)')->fetchAll();
+        if(!in_array('priority',array_column($columns,$this->driver==='mysql'?'Field':'name'),true))$this->db->exec('ALTER TABLE jobs ADD COLUMN priority INTEGER NOT NULL DEFAULT 10');
+        if(!$this->get('meta','federation_schema_0_5_2'))$this->tx(function(){
+            foreach($this->query("SELECT id,payload FROM jobs WHERE state='pending'")->fetchAll() as $job){
+                $payload=json_decode($job['payload'],true,64,JSON_THROW_ON_ERROR);
+                $this->query('UPDATE jobs SET priority=? WHERE id=?',[Federation::priority($payload),$job['id']]);
+            }
+            foreach(['comments','timeline','remote','saved','discovery_posts'] as $bucket)foreach($this->each($bucket) as $post){
+                if(!empty($post['inReplyTo'])&&!Federation::hasImage($post))$this->remove($bucket,$post['id']);
+            }
+            $this->put('meta','federation_schema_0_5_2',['version'=>'0.5.2']);
+        });
         if(!$this->get('meta','cache_schema_0_5_1'))$this->tx(function(){
             // Drop only disposable pre-verification display caches when upgrading.
             foreach(['profiles','cache','remote','discovery_posts'] as $bucket)$this->query('DELETE FROM records WHERE bucket=?',[$bucket]);

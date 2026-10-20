@@ -45,7 +45,7 @@ try{
  check($s->get('reactions','https://shared.example/a/reaction-collision')['actor']===$mallory->actorId(),'a signed actor cannot replace another actor reaction');
  $before=count($calls);$app->fed->work(0,1);check(count($calls)===$before,'idle worker cleanup performs no network fetch');
  rejected(fn()=>$app->fed->verify([],str_repeat('x',Federation::MAX_INBOX_BYTES+1),'/inbox'),'oversized activities rejected before verification');
- $s->query('DELETE FROM jobs');$s->tx(function()use($s){for($i=0;$i<2000;$i++)$s->query("INSERT INTO jobs(id,payload,attempts,due,state,error,created,updated) VALUES(?,?,0,?,'pending','',?,?)",[str_pad(dechex($i),32,'0',STR_PAD_LEFT),'{}',time()+86400,time(),time()]);});
+ $s->query('DELETE FROM jobs');$s->tx(function()use($s){for($i=0;$i<2000;$i++)$s->query("INSERT INTO jobs(id,payload,attempts,due,state,error,created,updated) VALUES(?,?,0,?,'pending','',?,?)",[str_pad(dechex($i),32,'0',STR_PAD_LEFT),App::json(['kind'=>'receive']),time()+86400,time(),time()]);});
  rejected(fn()=>$bad('another.example','queue'),'full inbox applies backpressure before fetching a key',429);check(count($calls)===$before,'full inbox does no outbound work');$s->query('DELETE FROM jobs');
  $canonical=note('https://trusted.example/p/1','https://trusted.example/users/bob','Canonical text');$canonicalCalls=[];
  $app->discovery=new Discovery($app,function($url,$headers)use(&$canonicalCalls,&$canonical){$canonicalCalls[]=['url'=>$url,'headers'=>$headers];return $canonical;});
@@ -63,10 +63,12 @@ try{
  $s->put('discovery_posts','https://trusted.example/p/old-spoof',note('https://trusted.example/p/old-spoof','https://trusted.example/users/victim','Old forged content')+['_discovery'=>['source'=>'evil.example']]);
  check(!in_array('https://trusted.example/p/old-spoof',array_column($app->feed->page('','newest',false)['posts'],'id'),true),'pre-upgrade foreign-origin poisoned entries are hidden from fresh feeds');
  $s->put('servers','private-interest.example',['domain'=>'private-interest.example','token'=>'FAKE_SECRET']);file_put_contents($dir.'/config.php','<?php return '.var_export($config,true).';');
+ if(getenv('PUP_TEST_SKIP_SUBPROCESS')!=='1'){
  $get=function(array $cookies=[])use($dir){$env=getenv();$env['PUP_CONFIG']=$dir.'/config.php';$proc=proc_open([PHP_BINARY,__DIR__.'/request.php'],[['pipe','r'],['pipe','w'],['pipe','w']],$pipes,null,$env);fwrite($pipes[0],App::json(['path'=>'/','cookies'=>$cookies]));fclose($pipes[0]);$html=stream_get_contents($pipes[1]);$err=stream_get_contents($pipes[2]);fclose($pipes[1]);fclose($pipes[2]);proc_close($proc);preg_match('~id="pup-state">(.*?)</script>~s',$html,$m);return [$html,json_decode($m[1]??'null',true),$err];};
  [$html,$state,$err]=$get();check(($state['owner']??true)===false&&($state['servers']??null)===[]&&!str_contains($html,'private-interest.example'),'signed-out public HTML contains no saved browsing destinations');check(!str_contains($html,'FAKE_SECRET'),'public HTML contains no saved token');
  $sid=bin2hex(random_bytes(16));file_put_contents($dir.'/owner/sessions/sess_'.$sid,'owner|'.serialize(hash('sha256',$config['password_hash'])).'csrf|'.serialize('fixture-csrf'));
  [$html,$state]=$get(['pup_owner'=>$sid]);check(($state['owner']??false)&&($state['servers'][0]['domain']??'')==='private-interest.example','owner retains its saved places');check(!str_contains($html,'FAKE_SECRET'),'owner HTML still redacts saved tokens');
+ }
  $s->query('DELETE FROM jobs');$s->query("INSERT INTO jobs(id,payload,attempts,due,state,error,created,updated) VALUES(?,?,8,?,'failed','old',?,?)",[str_repeat('f',32),'{}',time()-8*86400,time()-8*86400,time()-8*86400]);
  $s->put('actors','https://stale.example/users/bob',['id'=>'https://stale.example/users/bob']);$s->query('UPDATE records SET updated=? WHERE bucket=? AND ref=?',[time()-8*86400,'actors','https://stale.example/users/bob']);$app->fed->work(0,1);
  check((int)$s->query('SELECT COUNT(*) FROM jobs')->fetchColumn()===0&&$s->get('actors','https://stale.example/users/bob')===null,'expired actor cache and terminal failed jobs are pruned');
@@ -77,4 +79,4 @@ try{
  check($s->count('profiles')===0&&$s->count('cache')===0&&$s->count('remote')===0&&$s->count('discovery_posts')===0&&$s->get('posts','owner-fixture')!==null&&$s->get('saved',$original['id'])!==null,'security migration clears only disposable legacy caches and preserves owner and saved posts');
  $s->put('profiles','new-profile',['id'=>'new-profile']);$s->migrate();check($s->get('profiles','new-profile')!==null,'security cache migration runs only once');
  echo 'PASS: '.$checks.' security regression assertions on '.$s->driver."\n";
-}finally{foreach(new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir,FilesystemIterator::SKIP_DOTS),RecursiveIteratorIterator::CHILD_FIRST) as $f)$f->isDir()?rmdir($f->getPathname()):unlink($f->getPathname());rmdir($dir);}
+}finally{unset($app,$s,$bob,$mallory,$carol,$wire,$get,$bad,$sender);gc_collect_cycles();foreach(new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir,FilesystemIterator::SKIP_DOTS),RecursiveIteratorIterator::CHILD_FIRST) as $f)$f->isDir()?rmdir($f->getPathname()):unlink($f->getPathname());rmdir($dir);}
