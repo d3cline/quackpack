@@ -1,0 +1,29 @@
+#!/usr/bin/env php
+<?php
+// Keep this dispatcher compatible with old system PHP. Load modern code only
+// after choosing a supported CLI runtime; the web app's PHP setting is separate.
+if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
+$preferred = getenv('PUP_PHP');
+if ($preferred || PHP_VERSION_ID < 80200) {
+    if (!function_exists('proc_open')) {
+        fwrite(STDERR, "Run this command with PHP 8.2+: php85 bin/quackpack ...\n");
+        exit(1);
+    }
+    $candidates = $preferred ? array($preferred) : array('php85', 'php84', 'php83', 'php82');
+    foreach ($candidates as $candidate) {
+        $probe = escapeshellarg($candidate).' -r '.escapeshellarg('exit(PHP_VERSION_ID >= 80200 ? 0 : 1);');
+        $process = proc_open($probe, array(0 => STDIN, 1 => array('pipe','w'), 2 => array('pipe','w')), $pipes);
+        if (!is_resource($process)) continue;
+        stream_get_contents($pipes[1]); fclose($pipes[1]);
+        stream_get_contents($pipes[2]); fclose($pipes[2]);
+        if (proc_close($process) !== 0) continue;
+        $command = escapeshellarg($candidate).' '.escapeshellarg(__DIR__.'/pup');
+        foreach (array_slice($argv, 1) as $argument) $command .= ' '.escapeshellarg($argument);
+        $process = proc_open($command, array(0 => STDIN, 1 => STDOUT, 2 => STDERR), $pipes);
+        if (!is_resource($process)) break;
+        exit(proc_close($process));
+    }
+    fwrite(STDERR, $preferred ? "PUP_PHP must name a working PHP 8.2+ CLI binary.\n" : "No supported CLI PHP found. Run php85 bin/quackpack ... or set PUP_PHP.\n");
+    exit(1);
+}
+require __DIR__.'/pup';

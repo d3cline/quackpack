@@ -1,0 +1,50 @@
+Quackpack 0.5.0 — cross-platform ActivityPub browser
+2026-10-20
+
+PASS: 65 core PHP assertions on SQLite and 65 on MariaDB.
+PASS: 51 discovery/ranking assertions on SQLite and 51 on MariaDB.
+PASS: 25 federation/browsing assertions on SQLite and 25 on MariaDB.
+PASS: 33 cross-platform browser assertions on SQLite and 33 on MariaDB.
+PASS: 61 CLI/web request contracts.
+PASS: 73 plain Nginx/FastCGI hosting assertions.
+PASS: 32 installer, recovery, PHP-selection and running-upgrade assertions.
+PASS: 48 frontend DOM interaction assertions.
+PASS: 24 theme preference/persistence/contrast assertions.
+PASS: PHP (23 entrypoints), JavaScript, Python and bash syntax checks.
+Total: 586 behavior assertions, plus syntax.
+
+Cross-platform fixtures cover Mastodon.social-style restricted timeline and
+recommendations with a readable directory; anonymous public account posts;
+Pixelfed-compatible feeds; Misskey/Sharkey public notes, people, photos,
+warnings and highlights fallback; PeerTube indexes/channels/video previews;
+Lemmy API v3 discussions/communities; and generic ActivityPub publishers.
+
+Generic protocol checks cover HTML and HTTP alternate links, canonical actor
+and object resolution, embedded first pages, Collection/OrderedCollection,
+linked objects with bounded continuation, filter/host-bound cursors, public
+addressing, Question options, Articles, cross-origin delegated actor outboxes,
+canonical refetch of remote Announce and Group objects, blocked cached pages,
+and unsafe/relative link handling. No remote markup is executed.
+
+The DOM suite covers server directory cards, escaped remote names, account
+navigation/history, profile pagination/filter retention, media preview links,
+and existing feed/discovery/theme interactions. DOM checks do not constitute
+real-browser visual QA. PeerTube video/audio playback and poll voting open
+the original app; no native media player or voting UI was added.
+
+The Nginx fixture uses ordinary directory indexes and a generic PHP handler,
+without application rewrites or private-file deny rules. Upgrade tests use
+0.4.1 and preserve exact configuration, keys, actor/post URLs, links and data.
+
+All cross-platform network paths use controlled protocol fixtures. Attempts
+to refresh live Mastodon/public repository data during this build timed out;
+this is not a live acceptance test for every listed implementation or fork.
+Earlier 0.4.1 checks reproduced mastodon.social's authenticated-user 422.
+Native endpoint versions/settings may vary; Lemmy v4-only public indexes
+are not implemented, while public AP community/profile URLs use the generic
+reader. Servers that expose no index cannot be enumerated by domain alone.
+Public profiles, posts and collections are readable to the extent that the
+remote server exposes them. No deployment or live federation action occurred.
+
+Background discovery coverage is unchanged by the interactive adapters.
+See README for the current compatibility paths, limits and upgrade command.

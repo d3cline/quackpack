@@ -1,0 +1,9 @@
+{
+  "name": "quackpack/quackpack",
+  "description": "A single-owner photo journal and Fediverse browser, in PHP.",
+  "type": "project",
+  "license": "MIT",
+  "require": {"php": ">=8.2", "ext-pdo": "*", "ext-curl": "*", "ext-openssl": "*", "ext-gd": "*", "ext-mbstring": "*", "ext-fileinfo": "*"},
+  "suggest": {"ext-pdo_sqlite": "Default database", "ext-pdo_mysql": "MySQL / MariaDB database", "ext-exif": "Correct JPEG orientation"},
+  "scripts": {"test": "php tests/run.php"}
+}
